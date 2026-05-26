@@ -1,0 +1,297 @@
+package com.example.myapplication.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.example.myapplication.data.FeedItem
+import com.example.myapplication.data.FeedItemType
+
+/**
+ * 广告卡片工厂。
+ *
+ * 信息流通常有很多卡片形态：大图、小图、视频、直播、商品橱窗等。
+ * 工厂函数把“根据 type 选择卡片”的逻辑收敛在一个地方，
+ * FeedScreen 只负责列表、滚动、曝光和事件分发，不关心每种卡片怎么画。
+ */
+@Composable
+fun AdCardFactory(
+    item: FeedItem,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onShareClick: (String) -> Unit,
+    onTagClick: (String) -> Unit,
+    onCardClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (item.type) {
+        FeedItemType.IMAGE_BIG -> BigImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
+        FeedItemType.IMAGE_SMALL -> SmallImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
+        FeedItemType.VIDEO -> VideoAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
+    }
+}
+
+@Composable
+private fun BigImageAdCard(
+    item: FeedItem,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onShareClick: (String) -> Unit,
+    onTagClick: (String) -> Unit,
+    onCardClick: (String) -> Unit,
+    modifier: Modifier
+) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+        CoverPlaceholder(
+            title = item.title,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+        )
+    }
+}
+
+@Composable
+private fun SmallImageAdCard(
+    item: FeedItem,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onShareClick: (String) -> Unit,
+    onTagClick: (String) -> Unit,
+    onCardClick: (String) -> Unit,
+    modifier: Modifier
+) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+        CoverPlaceholder(
+            title = item.title,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(4f / 3f)
+        )
+    }
+}
+
+@Composable
+private fun VideoAdCard(
+    item: FeedItem,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onShareClick: (String) -> Unit,
+    onTagClick: (String) -> Unit,
+    onCardClick: (String) -> Unit,
+    modifier: Modifier
+) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+        Box {
+            CoverPlaceholder(
+                title = item.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+            )
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = Color.Black.copy(alpha = 0.48f),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "播放",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .padding(14.dp)
+                        .size(32.dp)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BaseCard(
+    item: FeedItem,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onShareClick: (String) -> Unit,
+    onTagClick: (String) -> Unit,
+    onCardClick: (String) -> Unit,
+    modifier: Modifier,
+    media: @Composable () -> Unit
+) {
+    val likeScale by animateFloatAsState(
+        targetValue = if (item.isLiked) 1.18f else 1f,
+        label = "likeScale"
+    )
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onCardClick(item.id) },
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column {
+            media()
+
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = item.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = item.aiSummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 标签数量不固定时，FlowRow 会自动换行；maxLines 限制最大高度，减少 LazyColumn 滚动中反复测量带来的抖动。
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    maxLines = 2
+                ) {
+                    item.aiTags.forEach { tag ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.clickable { onTagClick(tag) }
+                        ) {
+                            Text(
+                                text = tag,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    IconButton(onClick = { onLikeClick(item.id) }) {
+                        Icon(
+                            imageVector = if (item.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "点赞",
+                            tint = if (item.isLiked) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = likeScale
+                                scaleY = likeScale
+                            }
+                        )
+                    }
+                    Text(text = item.likesCount.toString(), style = MaterialTheme.typography.labelLarge)
+                    Icon(
+                        imageVector = Icons.Default.ChatBubbleOutline,
+                        contentDescription = "评论",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(text = item.commentsCount.toString(), style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = { onShareClick(item.id) }) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "分享",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { onCollectClick(item.id) }) {
+                        Icon(
+                            imageVector = if (item.isCollected) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            contentDescription = "收藏",
+                            tint = if (item.isCollected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverPlaceholder(title: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF1B5E20),
+                        Color(0xFF00695C),
+                        Color(0xFF455A64)
+                    )
+                )
+            )
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(18.dp)
+        )
+    }
+}
