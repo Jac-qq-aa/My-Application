@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +61,7 @@ import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.example.myapplication.R
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
 
@@ -403,8 +406,10 @@ private fun AdCoverImage(
         }
 
         if (imageState == CoverImageState.Error) {
-            CoverFallback(
-                title = "图片加载失败",
+            Image(
+                painter = painterResource(id = item.localFallbackCoverRes()),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize()
             )
         }
@@ -439,6 +444,17 @@ private enum class CoverImageState {
     Loading,
     Success,
     Error
+}
+
+private fun FeedItem.localFallbackCoverRes(): Int {
+    val covers = listOf(
+        R.drawable.ad_cover_1,
+        R.drawable.ad_cover_2,
+        R.drawable.ad_cover_3,
+        R.drawable.ad_cover_4,
+        R.drawable.ad_cover_5
+    )
+    return covers[kotlin.math.abs(id.hashCode()) % covers.size]
 }
 
 @Composable
