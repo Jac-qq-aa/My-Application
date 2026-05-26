@@ -1,5 +1,12 @@
 package com.example.myapplication.ui.feed
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -132,11 +139,15 @@ fun FeedScreen(
                     TrackingStatsPanel(stats = stats)
                 }
 
-                currentTag?.let { tag ->
-                    item(key = "tag_filter", contentType = "filter") {
+                item(key = "tag_filter", contentType = "filter") {
+                    AnimatedVisibility(
+                        visible = currentTag != null,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
                         AssistChip(
                             onClick = viewModel::clearTag,
-                            label = { Text("筛选标签：$tag，点击清除") }
+                            label = { Text("筛选标签：${currentTag.orEmpty()}，点击清除") }
                         )
                     }
                 }
@@ -202,7 +213,9 @@ private fun TrackingStatsPanel(stats: TrackingStats) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
     ) {
         Row(
             modifier = Modifier
@@ -222,8 +235,13 @@ private fun TrackingStatsPanel(stats: TrackingStats) {
 
 @Composable
 private fun StatText(label: String, value: Int) {
+    val animatedValue by animateIntAsState(
+        targetValue = value,
+        label = "stat_$label"
+    )
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value.toString(), style = MaterialTheme.typography.titleMedium)
+        Text(text = animatedValue.toString(), style = MaterialTheme.typography.titleMedium)
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,

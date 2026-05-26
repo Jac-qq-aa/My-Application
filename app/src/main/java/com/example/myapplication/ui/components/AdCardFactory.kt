@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.components
 
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,8 +32,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,6 +131,17 @@ private fun VideoAdCard(
     modifier: Modifier
 ) {
     BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+        val infiniteTransition = rememberInfiniteTransition(label = "videoPulse")
+        val pulseScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.08f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "videoPulseScale"
+        )
+
         Box {
             CoverPlaceholder(
                 title = item.title,
@@ -130,7 +152,12 @@ private fun VideoAdCard(
             Surface(
                 shape = RoundedCornerShape(28.dp),
                 color = Color.Black.copy(alpha = 0.48f),
-                modifier = Modifier.align(Alignment.Center)
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                    }
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
@@ -157,10 +184,35 @@ private fun BaseCard(
     modifier: Modifier,
     media: @Composable () -> Unit
 ) {
+    var showLikeBurst by remember { mutableStateOf(false) }
+    var likeBurstSeed by remember { mutableIntStateOf(0) }
     val likeScale by animateFloatAsState(
         targetValue = if (item.isLiked) 1.18f else 1f,
         label = "likeScale"
     )
+    val collectScale by animateFloatAsState(
+        targetValue = if (item.isCollected) 1.14f else 1f,
+        animationSpec = tween(durationMillis = 180),
+        label = "collectScale"
+    )
+    val likeBurstAlpha by animateFloatAsState(
+        targetValue = if (showLikeBurst) 1f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "likeBurstAlpha"
+    )
+    val likeBurstOffset by animateFloatAsState(
+        targetValue = if (showLikeBurst) -42f else -12f,
+        animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+        label = "likeBurstOffset"
+    )
+
+    LaunchedEffect(likeBurstSeed) {
+        if (likeBurstSeed > 0) {
+            showLikeBurst = true
+            kotlinx.coroutines.delay(650)
+            showLikeBurst = false
+        }
+    }
 
     Card(
         modifier = modifier
@@ -228,15 +280,37 @@ private fun BaseCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    IconButton(onClick = { onLikeClick(item.id) }) {
-                        Icon(
-                            imageVector = if (item.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "点赞",
-                            tint = if (item.isLiked) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.graphicsLayer {
-                                scaleX = likeScale
-                                scaleY = likeScale
+                    Box(contentAlignment = Alignment.Center) {
+                        IconButton(
+                            onClick = {
+                                onLikeClick(item.id)
+                                if (!item.isLiked) {
+                                    likeBurstSeed += 1
+                                }
                             }
+                        ) {
+                            Icon(
+                                imageVector = if (item.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "点赞",
+                                tint = if (item.isLiked) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.graphicsLayer {
+                                    scaleX = likeScale
+                                    scaleY = likeScale
+                                }
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFE53935),
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer {
+                                    alpha = likeBurstAlpha
+                                    translationY = likeBurstOffset
+                                    scaleX = 1.2f
+                                    scaleY = 1.2f
+                                }
                         )
                     }
                     Text(text = item.likesCount.toString(), style = MaterialTheme.typography.labelLarge)
@@ -248,18 +322,36 @@ private fun BaseCard(
                     )
                     Text(text = item.commentsCount.toString(), style = MaterialTheme.typography.labelLarge)
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onShareClick(item.id) }) {
+                    var shareSpinSeed by remember { mutableIntStateOf(0) }
+                    val shareRotation by animateFloatAsState(
+                        targetValue = shareSpinSeed * 18f,
+                        animationSpec = tween(durationMillis = 180),
+                        label = "shareRotation"
+                    )
+                    IconButton(
+                        onClick = {
+                            shareSpinSeed += 1
+                            onShareClick(item.id)
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "分享",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.graphicsLayer {
+                                rotationZ = shareRotation
+                            }
                         )
                     }
                     IconButton(onClick = { onCollectClick(item.id) }) {
                         Icon(
                             imageVector = if (item.isCollected) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                             contentDescription = "收藏",
-                            tint = if (item.isCollected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (item.isCollected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = collectScale
+                                scaleY = collectScale
+                            }
                         )
                     }
                 }
