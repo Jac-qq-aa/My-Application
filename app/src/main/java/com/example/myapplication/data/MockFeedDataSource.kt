@@ -18,6 +18,7 @@ object MockFeedDataSource {
     suspend fun loadFeedItems(
         page: Int,
         pageSize: Int,
+        refreshSeed: Int,
         networkDelayMillis: Long = 1_000
     ): List<FeedItem> {
         delay(networkDelayMillis)
@@ -41,6 +42,7 @@ object MockFeedDataSource {
         val startIndex = (page - 1) * pageSize
         return List(pageSize) { localIndex ->
             val index = startIndex + localIndex
+            val displayIndex = refreshSeed * 1_000 + index + 1
             val type = when (index % 3) {
                 0 -> FeedItemType.IMAGE_BIG
                 1 -> FeedItemType.IMAGE_SMALL
@@ -52,25 +54,25 @@ object MockFeedDataSource {
                 else -> FeedCategory.LOCAL
             }
             FeedItem(
-                id = "ad_${index + 1}",
+                id = "refresh_${refreshSeed}_ad_${index + 1}",
                 title = when (category) {
-                    FeedCategory.FEATURED -> "城市通勤新装备 ${index + 1}"
-                    FeedCategory.ECOMMERCE -> "春夏爆款好物 ${index + 1}"
-                    FeedCategory.LOCAL -> "附近高分体验 ${index + 1}"
+                    FeedCategory.FEATURED -> "第 ${refreshSeed + 1} 批精选 · 城市通勤新装备 $displayIndex"
+                    FeedCategory.ECOMMERCE -> "第 ${refreshSeed + 1} 批电商 · 春夏爆款好物 $displayIndex"
+                    FeedCategory.LOCAL -> "第 ${refreshSeed + 1} 批本地 · 附近高分体验 $displayIndex"
                 },
-                description = "这是一条用于训练单列广告信息流的高质量广告素材，强调封面、标题、互动状态和 AI 理解结果的组合呈现。",
+                description = "刷新批次 ${refreshSeed + 1}，分页 $page。这条广告用于验证下拉刷新、上拉加载和状态同步是否生效。",
                 type = type,
                 category = category,
                 coverUrl = "${covers[index % covers.size]}?auto=format&fit=crop&w=1200&q=80",
-                videoUrl = if (type == FeedItemType.VIDEO) "https://example.com/video/ad_${index + 1}.mp4" else null,
-                likesCount = 128 + index * 17,
-                commentsCount = 12 + index * 3,
+                videoUrl = if (type == FeedItemType.VIDEO) "https://example.com/video/refresh_${refreshSeed}_ad_${index + 1}.mp4" else null,
+                likesCount = 128 + refreshSeed * 11 + index * 17,
+                commentsCount = 12 + refreshSeed + index * 3,
                 isLiked = index % 5 == 0,
                 isCollected = index % 7 == 0,
                 aiSummary = if (index % 4 == 0) {
-                    "AI 摘要：该广告突出产品核心卖点、适用场景和即时优惠，适合在用户浏览决策早期做种草曝光。"
+                    "AI 摘要：第 ${refreshSeed + 1} 批素材突出产品核心卖点、适用场景和即时优惠，适合在用户浏览决策早期做种草曝光。"
                 } else {
-                    "AI 摘要：素材风格清晰，标题利益点明确。"
+                    "AI 摘要：第 ${refreshSeed + 1} 批素材风格清晰，标题利益点明确。"
                 },
                 aiTags = tagPool[index % tagPool.size]
             )

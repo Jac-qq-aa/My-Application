@@ -31,6 +31,7 @@ class FeedViewModel : ViewModel() {
     private val isLoadingMore = MutableStateFlow(false)
     private val hasMoreItems = MutableStateFlow(true)
     private val currentPage = MutableStateFlow(1)
+    private var refreshSeed = 0
 
     /**
      * 当前 Tab 下真正给列表展示的数据。
@@ -77,9 +78,14 @@ class FeedViewModel : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             isRefreshing.value = true
+            refreshSeed += 1
             currentPage.value = 1
             hasMoreItems.value = true
-            allItems.value = MockFeedDataSource.loadFeedItems(page = 1, pageSize = PageSize)
+            allItems.value = MockFeedDataSource.loadFeedItems(
+                page = 1,
+                pageSize = PageSize,
+                refreshSeed = refreshSeed
+            )
             isRefreshing.value = false
         }
     }
@@ -99,6 +105,7 @@ class FeedViewModel : ViewModel() {
             val nextItems = MockFeedDataSource.loadFeedItems(
                 page = nextPage,
                 pageSize = PageSize,
+                refreshSeed = refreshSeed,
                 networkDelayMillis = 700
             )
             allItems.value = allItems.value + nextItems

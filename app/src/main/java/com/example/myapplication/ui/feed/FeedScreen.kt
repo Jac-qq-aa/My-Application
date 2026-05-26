@@ -2,7 +2,11 @@ package com.example.myapplication.ui.feed
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +26,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -47,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.FeedCategory
 import com.example.myapplication.tracking.AdTracker
@@ -135,6 +142,10 @@ fun FeedScreen(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item(key = "refresh_banner", contentType = "refresh") {
+                    RefreshStatusBanner(refreshing = refreshing)
+                }
+
                 item(key = "stats_panel", contentType = "stats") {
                     TrackingStatsPanel(stats = stats)
                 }
@@ -209,6 +220,52 @@ fun FeedScreen(
 }
 
 @Composable
+private fun RefreshStatusBanner(refreshing: Boolean) {
+    AnimatedVisibility(
+        visible = refreshing,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically()
+    ) {
+        val infiniteTransition = rememberInfiniteTransition(label = "refreshSpin")
+        val rotation by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(animation = tween(durationMillis = 850)),
+            label = "refreshRotation"
+        )
+
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "刷新中",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .graphicsLayer { rotationZ = rotation }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "正在刷新广告内容...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TrackingStatsPanel(stats: TrackingStats) {
     Surface(
         shape = MaterialTheme.shapes.medium,
@@ -267,10 +324,11 @@ private fun LoadMoreFooter(
             loadingMore -> {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "加载更多广告中", style = MaterialTheme.typography.bodySmall)
+                Text(text = "正在加载下一批广告...", style = MaterialTheme.typography.bodyMedium)
             }
             itemCount == 0 -> Text(text = "当前筛选下暂无广告", style = MaterialTheme.typography.bodySmall)
-            !hasMore -> Text(text = "没有更多广告了", style = MaterialTheme.typography.bodySmall)
+            !hasMore -> Text(text = "没有更多广告了，试试下拉刷新", style = MaterialTheme.typography.bodySmall)
+            else -> Text(text = "继续上滑加载更多", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
