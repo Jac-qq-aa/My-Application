@@ -375,12 +375,20 @@ private fun AdCoverImage(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var imageState by remember { mutableStateOf(CoverImageState.Loading) }
+    var imageLoaded by remember(item.id) { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
     ) {
+        // 本地封面永远先显示：首屏、弱网、网络失败、列表复用回来时都有稳定画面。
+        Image(
+            painter = painterResource(id = item.localFallbackCoverRes()),
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize()
+        )
+
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(item.coverUrl)
@@ -392,27 +400,12 @@ private fun AdCoverImage(
                 .build(),
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
-            onLoading = { imageState = CoverImageState.Loading },
-            onSuccess = { imageState = CoverImageState.Success },
-            onError = { imageState = CoverImageState.Error },
-            modifier = Modifier.matchParentSize()
+            onSuccess = { imageLoaded = true },
+            onError = { imageLoaded = false },
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = if (imageLoaded) 1f else 0f }
         )
-
-        if (imageState == CoverImageState.Loading) {
-            CoverFallback(
-                title = "图片加载中",
-                modifier = Modifier.matchParentSize()
-            )
-        }
-
-        if (imageState == CoverImageState.Error) {
-            Image(
-                painter = painterResource(id = item.localFallbackCoverRes()),
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
-            )
-        }
 
         Box(
             modifier = Modifier
@@ -438,12 +431,6 @@ private fun AdCoverImage(
                 .padding(18.dp)
         )
     }
-}
-
-private enum class CoverImageState {
-    Loading,
-    Success,
-    Error
 }
 
 private fun FeedItem.localFallbackCoverRes(): Int {

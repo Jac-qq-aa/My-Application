@@ -227,7 +227,7 @@ private fun DetailContent(
 @Composable
 private fun DetailMedia(item: FeedItem) {
     val context = LocalContext.current
-    var imageState by remember { mutableStateOf(DetailImageState.Loading) }
+    var imageLoaded by remember(item.id) { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -235,6 +235,13 @@ private fun DetailMedia(item: FeedItem) {
             .aspectRatio(if (item.type == FeedItemType.IMAGE_SMALL) 4f / 3f else 16f / 9f)
             .background(Color(0xFF004D40), shape = RoundedCornerShape(8.dp))
     ) {
+        Image(
+            painter = painterResource(id = item.localFallbackCoverRes()),
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize()
+        )
+
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(item.coverUrl)
@@ -245,27 +252,12 @@ private fun DetailMedia(item: FeedItem) {
                 .build(),
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
-            onLoading = { imageState = DetailImageState.Loading },
-            onSuccess = { imageState = DetailImageState.Success },
-            onError = { imageState = DetailImageState.Error },
-            modifier = Modifier.matchParentSize()
+            onSuccess = { imageLoaded = true },
+            onError = { imageLoaded = false },
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = if (imageLoaded) 1f else 0f }
         )
-
-        if (imageState == DetailImageState.Loading) {
-            DetailMediaFallback(
-                title = "图片加载中",
-                modifier = Modifier.matchParentSize()
-            )
-        }
-
-        if (imageState == DetailImageState.Error) {
-            Image(
-                painter = painterResource(id = item.localFallbackCoverRes()),
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
-            )
-        }
 
         Box(
             modifier = Modifier
@@ -289,12 +281,6 @@ private fun DetailMedia(item: FeedItem) {
                 .padding(18.dp)
         )
     }
-}
-
-private enum class DetailImageState {
-    Loading,
-    Success,
-    Error
 }
 
 private fun FeedItem.localFallbackCoverRes(): Int {
