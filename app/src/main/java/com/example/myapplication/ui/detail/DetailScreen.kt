@@ -36,12 +36,21 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
 import com.example.myapplication.tracking.AdTracker
@@ -214,21 +223,58 @@ private fun DetailContent(
 
 @Composable
 private fun DetailMedia(item: FeedItem) {
+    val context = LocalContext.current
+    var imageState by remember { mutableStateOf(DetailImageState.Loading) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(if (item.type == FeedItemType.IMAGE_SMALL) 4f / 3f else 16f / 9f)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF004D40),
-                        Color(0xFF1565C0),
-                        Color(0xFF37474F)
-                    )
-                ),
-                shape = RoundedCornerShape(8.dp)
-            )
+            .background(Color(0xFF004D40), shape = RoundedCornerShape(8.dp))
     ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(item.coverUrl)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .networkCachePolicy(CachePolicy.ENABLED)
+                .crossfade(true)
+                .build(),
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            onLoading = { imageState = DetailImageState.Loading },
+            onSuccess = { imageState = DetailImageState.Success },
+            onError = { imageState = DetailImageState.Error },
+            modifier = Modifier.matchParentSize()
+        )
+
+        if (imageState == DetailImageState.Loading) {
+            DetailMediaFallback(
+                title = "图片加载中",
+                modifier = Modifier.matchParentSize()
+            )
+        }
+
+        if (imageState == DetailImageState.Error) {
+            DetailMediaFallback(
+                title = "图片加载失败",
+                modifier = Modifier.matchParentSize()
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.58f)
+                        )
+                    )
+                )
+        )
+
         Text(
             text = item.title,
             style = MaterialTheme.typography.titleLarge,
@@ -236,6 +282,37 @@ private fun DetailMedia(item: FeedItem) {
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(18.dp)
+        )
+    }
+}
+
+private enum class DetailImageState {
+    Loading,
+    Success,
+    Error
+}
+
+@Composable
+private fun DetailMediaFallback(
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.background(
+            Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF004D40),
+                    Color(0xFF1565C0),
+                    Color(0xFF37474F)
+                )
+            )
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.86f)
         )
     }
 }

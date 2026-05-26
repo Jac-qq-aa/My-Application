@@ -14,6 +14,7 @@
 - Flow / StateFlow
 - Navigation Compose
 - Media3 ExoPlayer
+- Coil
 
 ## 已实现功能
 
@@ -35,6 +36,9 @@
 - 视频播放按钮呼吸动效
 - 标签筛选条展开 / 收起动画
 - 统计数字变化动画
+- Coil 网络图片加载
+- 图片 loading / error 占位
+- 图片内存缓存 / 磁盘缓存 / 网络缓存策略
 - AI 摘要展示
 - AI 标签展示
 - 点击标签过滤信息流
@@ -101,6 +105,7 @@ external/
 - `LazyColumn` 必须使用稳定 `key`。
 - 卡片类型通过 `contentType` 区分。
 - 曝光、点击等事件统一走 `AdTracker`。
+- 图片统一使用 Coil 加载，并显式开启内存缓存、磁盘缓存和网络缓存。
 
 ## AI 声明
 
@@ -126,7 +131,6 @@ AI 辅助内容包括：
 
 ## 后续计划
 
-- 接入 Coil 图片加载和缓存
 - 接入 Media3 真实视频播放
 - 增加对话式搜索页面
 - 接入 Qwen 或本地 Mock AI 服务生成摘要和标签

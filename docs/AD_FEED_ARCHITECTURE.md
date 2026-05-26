@@ -300,8 +300,6 @@ FeedScreen(viewModel = feedViewModel)
 
 下一阶段可以继续补：
 
-- Coil 图片加载
-- Navigation Compose 详情页跳转
 - Repository 层
 - Room 本地缓存
 - Paging 3 分页加载
@@ -309,4 +307,3 @@ FeedScreen(viewModel = feedViewModel)
 - 曝光埋点批量上报
 - ViewModel 单元测试
 - Compose UI 自动化测试
-

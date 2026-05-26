@@ -50,9 +50,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
 
@@ -91,8 +97,8 @@ private fun BigImageAdCard(
     modifier: Modifier
 ) {
     BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
-        CoverPlaceholder(
-            title = item.title,
+        AdCoverImage(
+            item = item,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
@@ -111,8 +117,8 @@ private fun SmallImageAdCard(
     modifier: Modifier
 ) {
     BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
-        CoverPlaceholder(
-            title = item.title,
+        AdCoverImage(
+            item = item,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(4f / 3f)
@@ -143,8 +149,8 @@ private fun VideoAdCard(
         )
 
         Box {
-            CoverPlaceholder(
-                title = item.title,
+            AdCoverImage(
+                item = item,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
@@ -361,22 +367,63 @@ private fun BaseCard(
 }
 
 @Composable
-private fun CoverPlaceholder(title: String, modifier: Modifier = Modifier) {
+private fun AdCoverImage(
+    item: FeedItem,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var imageState by remember { mutableStateOf(CoverImageState.Loading) }
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF1B5E20),
-                        Color(0xFF00695C),
-                        Color(0xFF455A64)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(item.coverUrl)
+                // Coil 默认就有内存/磁盘缓存；这里显式打开，方便在答辩中说明缓存策略。
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .networkCachePolicy(CachePolicy.ENABLED)
+                .crossfade(true)
+                .build(),
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            onLoading = { imageState = CoverImageState.Loading },
+            onSuccess = { imageState = CoverImageState.Success },
+            onError = { imageState = CoverImageState.Error },
+            modifier = Modifier.matchParentSize()
+        )
+
+        if (imageState == CoverImageState.Loading) {
+            CoverFallback(
+                title = "图片加载中",
+                modifier = Modifier.matchParentSize()
+            )
+        }
+
+        if (imageState == CoverImageState.Error) {
+            CoverFallback(
+                title = "图片加载失败",
+                modifier = Modifier.matchParentSize()
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.58f)
+                        )
                     )
                 )
-            )
-    ) {
+        )
+
         Text(
-            text = title,
+            text = item.title,
             style = MaterialTheme.typography.titleLarge,
             color = Color.White,
             maxLines = 2,
@@ -384,6 +431,37 @@ private fun CoverPlaceholder(title: String, modifier: Modifier = Modifier) {
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(18.dp)
+        )
+    }
+}
+
+private enum class CoverImageState {
+    Loading,
+    Success,
+    Error
+}
+
+@Composable
+private fun CoverFallback(
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.background(
+            Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF1B5E20),
+                    Color(0xFF00695C),
+                    Color(0xFF455A64)
+                )
+            )
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.86f)
         )
     }
 }

@@ -380,9 +380,17 @@ Compose 中没有传统 RecyclerView 的 ViewHolder，但 LazyColumn 会复用 i
 
 ### 7.3 图片/AI 缓存
 
+当前方案：
+
+- 已接入 Coil Compose。
+- 列表页和详情页都使用 `coverUrl` 加载远程图片。
+- 显式开启内存缓存、磁盘缓存和网络缓存。
+- 图片加载中展示渐变占位。
+- 图片加载失败展示错误占位。
+- Mock 数据暂时使用 Unsplash 远程图片 URL，适合训练营演示，不将图片资源打包进 APK。
+
 后续建议：
 
-- 图片使用 Coil，自带内存和磁盘缓存。
 - AI 摘要和标签以 `adId` 为 key 缓存。
 - 缓存字段包括 `summary`、`tags`、`modelVersion`、`updatedAt`。
 - 模型版本变化时可以主动失效旧缓存。
@@ -529,6 +537,8 @@ AI 不能自由输出散文本，必须结构化。
 - 视频播放按钮呼吸动效。
 - 标签筛选条动画。
 - 统计数字动画。
+- Coil 图片加载和缓存。
+- 图片 loading / error 占位。
 - AI 摘要和标签展示。
 - 标签点击过滤。
 - 标签点击埋点。
@@ -549,7 +559,6 @@ AI 不能自由输出散文本，必须结构化。
 - Qwen 摘要和标签生成。
 - 标签点击过滤。
 - 对话式搜索。
-- Coil 图片加载和缓存。
 - Media3 真视频播放。
 - Compose 性能数据对比。
 - 测试用例。
@@ -580,7 +589,7 @@ AI 不能自由输出散文本，必须结构化。
 
 目标：提高技术方案设计和答辩表现。
 
-- 接入 Coil 图片加载。
+- 用 Coil 加载效果做首屏体验和缓存命中验证。
 - 视频卡片接入 Media3 基础播放。
 - 使用 Compose Stability Analyzer 或 Layout Inspector 验证重组情况。
 - 完善 README。
