@@ -50,9 +50,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
 
@@ -69,14 +71,15 @@ fun AdCardFactory(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (item.type) {
-        FeedItemType.IMAGE_BIG -> BigImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
-        FeedItemType.IMAGE_SMALL -> SmallImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
-        FeedItemType.VIDEO -> VideoAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
+        FeedItemType.IMAGE_BIG -> BigImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
+        FeedItemType.IMAGE_SMALL -> SmallImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
+        FeedItemType.VIDEO -> VideoAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
     }
 }
 
@@ -86,13 +89,14 @@ private fun BigImageAdCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier
 ) {
-    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
-        CoverPlaceholder(
-            title = item.title,
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
+        CoverImage(
+            item = item,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
@@ -106,13 +110,14 @@ private fun SmallImageAdCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier
 ) {
-    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
-        CoverPlaceholder(
-            title = item.title,
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
+        CoverImage(
+            item = item,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(4f / 3f)
@@ -126,11 +131,12 @@ private fun VideoAdCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier
 ) {
-    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
         val infiniteTransition = rememberInfiniteTransition(label = "videoPulse")
         val pulseScale by infiniteTransition.animateFloat(
             initialValue = 1f,
@@ -143,8 +149,8 @@ private fun VideoAdCard(
         )
 
         Box {
-            CoverPlaceholder(
-                title = item.title,
+            CoverImage(
+                item = item,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
@@ -179,6 +185,7 @@ private fun BaseCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier,
@@ -314,13 +321,19 @@ private fun BaseCard(
                         )
                     }
                     Text(text = item.likesCount.toString(), style = MaterialTheme.typography.labelLarge)
-                    Icon(
-                        imageVector = Icons.Default.ChatBubbleOutline,
-                        contentDescription = "评论",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(text = item.commentsCount.toString(), style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.clickable { onCommentClick(item.id) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChatBubbleOutline,
+                            contentDescription = "评论",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(text = item.commentsCount.toString(), style = MaterialTheme.typography.labelLarge)
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     var shareSpinSeed by remember { mutableIntStateOf(0) }
                     val shareRotation by animateFloatAsState(
@@ -361,22 +374,32 @@ private fun BaseCard(
 }
 
 @Composable
-private fun CoverPlaceholder(title: String, modifier: Modifier = Modifier) {
+private fun CoverImage(item: FeedItem, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF1B5E20),
-                        Color(0xFF00695C),
-                        Color(0xFF455A64)
+            .background(coverBrush())
+    ) {
+        AsyncImage(
+            model = item.coverUrl,
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.56f)
+                        )
                     )
                 )
-            )
-    ) {
+        )
         Text(
-            text = title,
+            text = item.title,
             style = MaterialTheme.typography.titleLarge,
             color = Color.White,
             maxLines = 2,
@@ -386,4 +409,14 @@ private fun CoverPlaceholder(title: String, modifier: Modifier = Modifier) {
                 .padding(18.dp)
         )
     }
+}
+
+private fun coverBrush(): Brush {
+    return Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF1B5E20),
+            Color(0xFF00695C),
+            Color(0xFF455A64)
+        )
+    )
 }

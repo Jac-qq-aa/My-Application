@@ -14,6 +14,7 @@
 - Flow / StateFlow
 - Navigation Compose
 - Media3 ExoPlayer
+- Coil
 
 ## 已实现功能
 
@@ -21,13 +22,16 @@
 - 三种广告卡片：大图、小图、视频占位
 - 顶部 Tab：精选 / 电商 / 本地
 - 模拟网络加载
+- 首屏骨架屏
+- 空态 / 错误态 / 重试
 - 下拉刷新
 - 上拉加载更多
 - 点击卡片进入详情页
 - 返回列表保持滚动位置
 - 列表页 / 详情页点赞状态同步
 - 列表页 / 详情页收藏状态同步
-- 分享交互模拟
+- 系统分享面板真实调用
+- 详情页评论区与本地评论发布
 - 页面切换动画
 - 点赞浮动爱心彩蛋
 - 收藏缩放动效
@@ -37,10 +41,13 @@
 - 统计数字变化动画
 - AI 摘要展示
 - AI 标签展示
+- Coil 网络图片加载与缓存
 - 点击标签过滤信息流
 - 曝光统计：可见比例超过 50% 且停留 1 秒
 - 点击统计：卡片、点赞、收藏、分享、标签
+- 评论入口与评论发布点击统计
 - 信息流顶部展示本地统计面板
+- 统计详情页：指标卡片、CTR / 互动率、事件分布图
 - Media3 ExoPlayer 播放器复用池接口预留
 
 ## 目录结构
@@ -58,10 +65,6 @@ app/src/main/java/com/example/myapplication/
 ## 如何运行
 
 1. 使用 Android Studio 打开项目目录。
-
-```text
-C:\Users\12487\AndroidStudioProjects\MyApplication
-```
 
 2. 在 Android Studio 中执行 Gradle Sync。
 
@@ -81,16 +84,7 @@ File > Sync Project with Gradle Files
 
 ## 参考项目
 
-参考源码已 clone 到：
-
-```text
-external/
-  Hilt-MVVM-Compose-Movie/
-  BaseApp-Jetpack-Compose-Android-Kotlin/
-  compose-impression-tracker/
-  compose-stability-analyzer/
-  androidx-media/
-```
+参考项目分析见 [参考项目索引](docs/references/README.md)。
 
 ## 开发规范
 
@@ -121,14 +115,17 @@ AI 辅助内容包括：
 - 使用不可变数据和 `StateFlow` 保证状态同步
 - 使用 `LazyColumn key` 和 `contentType` 优化列表复用
 - 为 AI 摘要和标签添加行数约束，减少动态高度抖动
+- 为首屏加载、空结果和加载失败补充明确状态视图
+- 接入 Coil 加载 Mock 数据中的网络封面图
+- 使用系统分享 Intent 完成真实分享调用
+- 为详情页补充本地评论列表与发布入口
+- 为本地埋点补充统计详情页和基础图表展示
 - 为视频流预留播放器复用池，避免每个卡片创建播放器
 - 明确曝光口径：50% 可见比例 + 1 秒停留 + 单次去重
 
 ## 后续计划
 
-- 接入 Coil 图片加载和缓存
 - 接入 Media3 真实视频播放
 - 增加对话式搜索页面
 - 接入 Qwen 或本地 Mock AI 服务生成摘要和标签
-- 增加统计详情页或图表
 - 增加 Compose UI 测试和 ViewModel 单元测试

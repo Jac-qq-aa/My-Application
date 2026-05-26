@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,8 +31,8 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -47,13 +48,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.FeedCategory
+import com.example.myapplication.data.FeedItem
 import com.example.myapplication.tracking.AdTracker
 import com.example.myapplication.tracking.ClickEvent
 import com.example.myapplication.tracking.ExposureEvent
 import com.example.myapplication.tracking.TrackingStats
 import com.example.myapplication.ui.components.AdCardFactory
+import com.example.myapplication.ui.components.FeedEmptyState
+import com.example.myapplication.ui.components.FeedErrorState
+import com.example.myapplication.ui.components.FeedSkeletonList
+import com.example.myapplication.ui.share.shareFeedItem
+import com.example.myapplication.viewmodel.FeedScreenState
 import com.example.myapplication.viewmodel.FeedViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -69,6 +77,7 @@ fun FeedScreen(
     viewModel: FeedViewModel,
     tracker: AdTracker,
     onNavigateToDetail: (String) -> Unit,
+    onNavigateToStats: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.feedItems.collectAsState()
@@ -77,20 +86,24 @@ fun FeedScreen(
     val refreshing by viewModel.refreshing.collectAsState()
     val loadingMore by viewModel.loadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    val screenState by viewModel.currentScreenState.collectAsState()
     val stats by tracker.stats.collectAsState()
+    val context = LocalContext.current
     val listState = rememberSaveable(saver = LazyListState.Saver) {
         LazyListState()
     }
     val refreshState = rememberPullRefreshState(refreshing = refreshing, onRefresh = viewModel::refresh)
 
-    TrackEffectiveExposure(
-        listStateInfoProvider = { listState.layoutInfo.visibleItemsInfo },
-        viewportStartProvider = { listState.layoutInfo.viewportStartOffset },
-        viewportEndProvider = { listState.layoutInfo.viewportEndOffset },
-        tracker = tracker
-    )
+    if (screenState is FeedScreenState.Content) {
+        TrackEffectiveExposure(
+            listStateInfoProvider = { listState.layoutInfo.visibleItemsInfo },
+            viewportStartProvider = { listState.layoutInfo.viewportStartOffset },
+            viewportEndProvider = { listState.layoutInfo.viewportEndOffset },
+            tracker = tracker
+        )
+    }
 
-    LaunchedEffect(listState, items.size, hasMore) {
+    LaunchedEffect(listState, items.size, hasMore, screenState) {
         snapshotFlow {
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             val totalCount = listState.layoutInfo.totalItemsCount
@@ -98,7 +111,7 @@ fun FeedScreen(
         }
             .distinctUntilChanged()
             .collect { (lastVisibleIndex, totalCount) ->
-                if (hasMore && totalCount > 0 && lastVisibleIndex >= totalCount - 4) {
+                if (screenState is FeedScreenState.Content && hasMore && totalCount > 0 && lastVisibleIndex >= totalCount - 4) {
                     viewModel.loadMore()
                 }
             }
@@ -108,7 +121,7 @@ fun FeedScreen(
         topBar = {
             Column {
                 TopAppBar(title = { Text("广告信息流") })
-                ScrollableTabRow(selectedTabIndex = FeedCategory.entries.indexOf(currentCategory)) {
+                PrimaryScrollableTabRow(selectedTabIndex = FeedCategory.entries.indexOf(currentCategory)) {
                     FeedCategory.entries.forEach { category ->
                         Tab(
                             selected = currentCategory == category,
@@ -129,72 +142,53 @@ fun FeedScreen(
                 .fillMaxSize()
                 .pullRefresh(refreshState)
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item(key = "stats_panel", contentType = "stats") {
-                    TrackingStatsPanel(stats = stats)
-                }
-
-                item(key = "tag_filter", contentType = "filter") {
-                    AnimatedVisibility(
-                        visible = currentTag != null,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        AssistChip(
-                            onClick = viewModel::clearTag,
-                            label = { Text("筛选标签：${currentTag.orEmpty()}，点击清除") }
-                        )
-                    }
-                }
-
-                /**
-                 * key = item.id 是局部刷新的关键。
-                 *
-                 * 点赞某一条后，ViewModel 会发出新 List，但未变化 item 的 id 和对象语义都保持稳定。
-                 * LazyColumn 能根据 key 复用原来的 item slot，Compose 只重组状态发生变化的卡片。
-                 */
-                items(
+            when (val state = screenState) {
+                FeedScreenState.Loading -> FeedSkeletonList()
+                is FeedScreenState.Empty -> FeedEmptyState(
+                    isTagFiltered = state.isTagFiltered,
+                    onClearFilter = viewModel::clearTag
+                )
+                is FeedScreenState.Error -> FeedErrorState(
+                    message = state.message,
+                    onRetry = viewModel::retry
+                )
+                FeedScreenState.Content -> FeedContentList(
                     items = items,
-                    key = { item -> item.id },
-                    contentType = { item -> item.type }
-                ) { item ->
-                    AdCardFactory(
-                        item = item,
-                        onLikeClick = { id ->
-                            viewModel.toggleLike(id)
-                            tracker.trackClick(ClickEvent(id, "like"))
-                        },
-                        onCollectClick = { id ->
-                            viewModel.toggleCollect(id)
-                            tracker.trackClick(ClickEvent(id, "collect"))
-                        },
-                        onShareClick = { id ->
-                            tracker.trackClick(ClickEvent(id, "share"))
-                        },
-                        onTagClick = { tag ->
-                            viewModel.selectTag(tag)
-                            tracker.trackClick(ClickEvent(item.id, "tag:$tag"))
-                        },
-                        onCardClick = { id ->
-                            tracker.trackClick(ClickEvent(id, "card"))
-                            onNavigateToDetail(id)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                item(key = "load_more", contentType = "load_more") {
-                    LoadMoreFooter(
-                        loadingMore = loadingMore,
-                        hasMore = hasMore,
-                        itemCount = items.size
-                    )
-                }
+                    currentTag = currentTag,
+                    stats = stats,
+                    listState = listState,
+                    loadingMore = loadingMore,
+                    hasMore = hasMore,
+                    onStatsClick = {
+                        tracker.trackClick(ClickEvent("stats_panel", "stats"))
+                        onNavigateToStats()
+                    },
+                    onClearTag = viewModel::clearTag,
+                    onLikeClick = { id ->
+                        viewModel.toggleLike(id)
+                        tracker.trackClick(ClickEvent(id, "like"))
+                    },
+                    onCollectClick = { id ->
+                        viewModel.toggleCollect(id)
+                        tracker.trackClick(ClickEvent(id, "collect"))
+                    },
+                    onShareClick = { item ->
+                        shareFeedItem(context, item)
+                        tracker.trackClick(ClickEvent(item.id, "share"))
+                    },
+                    onCommentClick = { id ->
+                        tracker.trackClick(ClickEvent(id, "comment_entry"))
+                        onNavigateToDetail(id)
+                    },
+                    onTagClick = { itemId, tag ->
+                        viewModel.selectTag(tag)
+                        tracker.trackClick(ClickEvent(itemId, "tag:$tag"))
+                    },
+                    onCardClick = { id ->
+                        tracker.trackClick(ClickEvent(id, "card"))
+                        onNavigateToDetail(id)
+                    }
+                )
             }
 
             PullRefreshIndicator(
@@ -209,12 +203,89 @@ fun FeedScreen(
 }
 
 @Composable
-private fun TrackingStatsPanel(stats: TrackingStats) {
+private fun FeedContentList(
+    items: List<FeedItem>,
+    currentTag: String?,
+    stats: TrackingStats,
+    listState: LazyListState,
+    loadingMore: Boolean,
+    hasMore: Boolean,
+    onStatsClick: () -> Unit,
+    onClearTag: () -> Unit,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onShareClick: (FeedItem) -> Unit,
+    onCommentClick: (String) -> Unit,
+    onTagClick: (String, String) -> Unit,
+    onCardClick: (String) -> Unit
+) {
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item(key = "stats_panel", contentType = "stats") {
+            TrackingStatsPanel(stats = stats, onClick = onStatsClick)
+        }
+
+        item(key = "tag_filter", contentType = "filter") {
+            AnimatedVisibility(
+                visible = currentTag != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                AssistChip(
+                    onClick = onClearTag,
+                    label = { Text("筛选标签：${currentTag.orEmpty()}，点击清除") }
+                )
+            }
+        }
+
+        /**
+         * key = item.id 是局部刷新的关键。
+         *
+         * 点赞某一条后，ViewModel 会发出新 List，但未变化 item 的 id 和对象语义都保持稳定。
+         * LazyColumn 能根据 key 复用原来的 item slot，Compose 只重组状态发生变化的卡片。
+         */
+        items(
+            items = items,
+            key = { item -> item.id },
+            contentType = { item -> item.type }
+        ) { item ->
+            AdCardFactory(
+                item = item,
+                onLikeClick = onLikeClick,
+                onCollectClick = onCollectClick,
+                onShareClick = { onShareClick(item) },
+                onCommentClick = onCommentClick,
+                onTagClick = { tag -> onTagClick(item.id, tag) },
+                onCardClick = onCardClick,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        item(key = "load_more", contentType = "load_more") {
+            LoadMoreFooter(
+                loadingMore = loadingMore,
+                hasMore = hasMore,
+                itemCount = items.size
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrackingStatsPanel(
+    stats: TrackingStats,
+    onClick: () -> Unit
+) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .animateContentSize()
     ) {
         Row(

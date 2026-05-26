@@ -3,6 +3,7 @@ package com.example.myapplication.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.FeedCategory
+import com.example.myapplication.data.FeedComment
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.MockFeedDataSource
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,9 @@ class FeedViewModel : ViewModel() {
     private val isLoadingMore = MutableStateFlow(false)
     private val hasMoreItems = MutableStateFlow(true)
     private val currentPage = MutableStateFlow(1)
+    private val screenState = MutableStateFlow<FeedScreenState>(FeedScreenState.Loading)
+    private val commentsByItemId = MutableStateFlow<Map<String, List<FeedComment>>>(emptyMap())
+    private var hasLoadedOnce = false
 
     /**
      * 当前 Tab 下真正给列表展示的数据。
@@ -50,6 +54,8 @@ class FeedViewModel : ViewModel() {
     val refreshing: StateFlow<Boolean> = isRefreshing.asStateFlow()
     val loadingMore: StateFlow<Boolean> = isLoadingMore.asStateFlow()
     val hasMore: StateFlow<Boolean> = hasMoreItems.asStateFlow()
+    val currentScreenState: StateFlow<FeedScreenState> = screenState.asStateFlow()
+    val comments: StateFlow<Map<String, List<FeedComment>>> = commentsByItemId.asStateFlow()
 
     init {
         observeFilteredItems()
@@ -64,6 +70,9 @@ class FeedViewModel : ViewModel() {
                     .filter { item -> tag == null || item.aiTags.contains(tag) }
             }.collect { filteredItems ->
                 _feedItems.value = filteredItems
+                if (hasLoadedOnce && screenState.value !is FeedScreenState.Error && screenState.value !is FeedScreenState.Loading) {
+                    screenState.value = filteredItems.toScreenState()
+                }
             }
         }
     }
@@ -76,12 +85,35 @@ class FeedViewModel : ViewModel() {
      */
     fun refresh() {
         viewModelScope.launch {
+            val showFullLoading = !hasLoadedOnce || screenState.value is FeedScreenState.Error
+            if (showFullLoading) {
+                screenState.value = FeedScreenState.Loading
+            }
             isRefreshing.value = true
-            currentPage.value = 1
-            hasMoreItems.value = true
-            allItems.value = MockFeedDataSource.loadFeedItems(page = 1, pageSize = PageSize)
-            isRefreshing.value = false
+            try {
+                currentPage.value = 1
+                hasMoreItems.value = true
+                val loadedItems = MockFeedDataSource.loadFeedItems(page = 1, pageSize = PageSize)
+                allItems.value = loadedItems
+                hasLoadedOnce = true
+                screenState.value = loadedItems
+                    .filter { it.category == selectedCategory.value }
+                    .filter { item -> selectedTag.value == null || item.aiTags.contains(selectedTag.value) }
+                    .toScreenState()
+            } catch (exception: Exception) {
+                if (allItems.value.isEmpty()) {
+                    screenState.value = FeedScreenState.Error(
+                        message = exception.message ?: "广告加载失败，请稍后重试"
+                    )
+                }
+            } finally {
+                isRefreshing.value = false
+            }
         }
+    }
+
+    fun retry() {
+        refresh()
     }
 
     /**
@@ -95,16 +127,19 @@ class FeedViewModel : ViewModel() {
 
         viewModelScope.launch {
             isLoadingMore.value = true
-            val nextPage = currentPage.value + 1
-            val nextItems = MockFeedDataSource.loadFeedItems(
-                page = nextPage,
-                pageSize = PageSize,
-                networkDelayMillis = 700
-            )
-            allItems.value = allItems.value + nextItems
-            currentPage.value = nextPage
-            hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
-            isLoadingMore.value = false
+            try {
+                val nextPage = currentPage.value + 1
+                val nextItems = MockFeedDataSource.loadFeedItems(
+                    page = nextPage,
+                    pageSize = PageSize,
+                    networkDelayMillis = 700
+                )
+                allItems.value = allItems.value + nextItems
+                currentPage.value = nextPage
+                hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
+            } finally {
+                isLoadingMore.value = false
+            }
         }
     }
 
@@ -119,6 +154,14 @@ class FeedViewModel : ViewModel() {
 
     fun clearTag() {
         selectedTag.value = null
+    }
+
+    private fun List<FeedItem>.toScreenState(): FeedScreenState {
+        return if (isEmpty()) {
+            FeedScreenState.Empty(isTagFiltered = selectedTag.value != null)
+        } else {
+            FeedScreenState.Content
+        }
     }
 
     /**
@@ -152,6 +195,28 @@ class FeedViewModel : ViewModel() {
         allItems.value = allItems.value.map { item ->
             if (item.id == id) {
                 item.copy(isCollected = !item.isCollected)
+            } else {
+                item
+            }
+        }
+    }
+
+    fun addComment(itemId: String, content: String) {
+        val trimmedContent = content.trim()
+        if (trimmedContent.isEmpty()) return
+
+        val currentComments = commentsByItemId.value[itemId].orEmpty()
+        val newComment = FeedComment(
+            id = "${itemId}_comment_${currentComments.size + 1}_${System.currentTimeMillis()}",
+            itemId = itemId,
+            author = "我",
+            content = trimmedContent,
+            timestampLabel = "刚刚"
+        )
+        commentsByItemId.value = commentsByItemId.value + (itemId to (listOf(newComment) + currentComments))
+        allItems.value = allItems.value.map { item ->
+            if (item.id == itemId) {
+                item.copy(commentsCount = item.commentsCount + 1)
             } else {
                 item
             }
