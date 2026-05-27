@@ -1,7 +1,7 @@
 package com.example.myapplication.ui.detail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +13,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Favorite
@@ -26,10 +27,13 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,10 +59,12 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.example.myapplication.R
+import com.example.myapplication.data.FeedComment
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
 import com.example.myapplication.tracking.AdTracker
 import com.example.myapplication.tracking.ClickEvent
+import com.example.myapplication.ui.share.shareFeedItem
 import com.example.myapplication.viewmodel.FeedViewModel
 
 /**
@@ -76,7 +82,9 @@ fun DetailScreen(
     onBack: () -> Unit
 ) {
     val allItems by viewModel.allFeedItems.collectAsState()
+    val commentsByItemId by viewModel.comments.collectAsState()
     val item = allItems.firstOrNull { it.id == itemId }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -84,7 +92,7 @@ fun DetailScreen(
                 title = { Text("广告详情") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -105,6 +113,7 @@ fun DetailScreen(
 
         DetailContent(
             item = currentItem,
+            comments = commentsByItemId[currentItem.id].orEmpty(),
             onLikeClick = {
                 viewModel.toggleLike(currentItem.id)
                 tracker.trackClick(ClickEvent(currentItem.id, "like"))
@@ -114,7 +123,12 @@ fun DetailScreen(
                 tracker.trackClick(ClickEvent(currentItem.id, "collect"))
             },
             onShareClick = {
+                shareFeedItem(context, currentItem)
                 tracker.trackClick(ClickEvent(currentItem.id, "share"))
+            },
+            onCommentSubmit = { content ->
+                viewModel.addComment(currentItem.id, content)
+                tracker.trackClick(ClickEvent(currentItem.id, "comment"))
             },
             modifier = Modifier.padding(innerPadding)
         )
@@ -125,9 +139,11 @@ fun DetailScreen(
 @Composable
 private fun DetailContent(
     item: FeedItem,
+    comments: List<FeedComment>,
     onLikeClick: () -> Unit,
     onCollectClick: () -> Unit,
     onShareClick: () -> Unit,
+    onCommentSubmit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -222,7 +238,117 @@ private fun DetailContent(
                 Icon(imageVector = Icons.Default.Share, contentDescription = "分享")
             }
         }
+
+        CommentSection(
+            item = item,
+            comments = comments,
+            onCommentSubmit = onCommentSubmit
+        )
     }
+}
+
+@Composable
+private fun CommentSection(
+    item: FeedItem,
+    comments: List<FeedComment>,
+    onCommentSubmit: (String) -> Unit
+) {
+    var input by remember(item.id) { mutableStateOf("") }
+    val previewComments = comments + defaultComments(item)
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "评论 ${item.commentsCount}",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("写下你的想法") },
+                maxLines = 3
+            )
+            Button(
+                onClick = {
+                    onCommentSubmit(input)
+                    input = ""
+                },
+                enabled = input.isNotBlank()
+            ) {
+                Text("发布")
+            }
+        }
+        previewComments.take(4).forEach { comment ->
+            CommentItem(comment = comment)
+        }
+    }
+}
+
+@Composable
+private fun CommentItem(comment: FeedComment) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = comment.author.take(1),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = comment.author,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = comment.timestampLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = comment.content,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+private fun defaultComments(item: FeedItem): List<FeedComment> {
+    return listOf(
+        FeedComment(
+            id = "${item.id}_default_1",
+            itemId = item.id,
+            author = "用户A",
+            content = "封面和标题都很清楚，第一眼就能看懂卖点。",
+            timestampLabel = "2分钟前"
+        ),
+        FeedComment(
+            id = "${item.id}_default_2",
+            itemId = item.id,
+            author = "用户B",
+            content = "这个素材适合放在信息流前几屏，点击欲望还不错。",
+            timestampLabel = "8分钟前"
+        )
+    )
 }
 
 @Composable
@@ -234,7 +360,7 @@ private fun DetailMedia(item: FeedItem) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(if (item.type == FeedItemType.IMAGE_SMALL) 4f / 3f else 16f / 9f)
-            .background(Color(0xFF004D40), shape = RoundedCornerShape(8.dp))
+            .background(detailCoverBrush(), shape = RoundedCornerShape(8.dp))
     ) {
         Image(
             painter = painterResource(id = item.localFallbackCoverRes()),
@@ -272,7 +398,6 @@ private fun DetailMedia(item: FeedItem) {
                     )
                 )
         )
-
         Text(
             text = item.title,
             style = MaterialTheme.typography.titleLarge,
@@ -295,27 +420,12 @@ private fun FeedItem.localFallbackCoverRes(): Int {
     return covers[kotlin.math.abs(id.hashCode()) % covers.size]
 }
 
-@Composable
-private fun DetailMediaFallback(
-    title: String,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.background(
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF004D40),
-                    Color(0xFF1565C0),
-                    Color(0xFF37474F)
-                )
-            )
-        ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.86f)
+private fun detailCoverBrush(): Brush {
+    return Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF004D40),
+            Color(0xFF1565C0),
+            Color(0xFF37474F)
         )
-    }
+    )
 }

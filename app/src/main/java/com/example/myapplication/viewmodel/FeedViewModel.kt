@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.FeedCategory
+import com.example.myapplication.data.FeedComment
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.MockFeedDataSource
 import com.example.myapplication.data.ai.HybridAiInsightGenerator
@@ -37,18 +38,12 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val isLoadingMore = MutableStateFlow(false)
     private val hasMoreItems = MutableStateFlow(true)
     private val currentPage = MutableStateFlow(1)
+    private val screenState = MutableStateFlow<FeedScreenState>(FeedScreenState.Loading)
+    private val commentsByItemId = MutableStateFlow<Map<String, List<FeedComment>>>(emptyMap())
     private var refreshSeed = 0
+    private var hasLoadedOnce = false
     private var aiInsightJob: Job? = null
 
-    /**
-     * 当前 Tab 下真正给列表展示的数据。
-     *
-     * combine 会监听 allItems 和 selectedCategory 任意一个变化：
-     * - 点赞/收藏改变 allItems，会自动重新计算当前列表；
-     * - 切 Tab 改变 selectedCategory，也会自动得到过滤后的列表。
-     *
-     * StateFlow 的价值在于：UI collect 之后，只要这里 emit 新值，Compose 就会自动重组相关区域。
-     */
     private val _feedItems = MutableStateFlow<List<FeedItem>>(emptyList())
     val allFeedItems: StateFlow<List<FeedItem>> = allItems.asStateFlow()
     val feedItems: StateFlow<List<FeedItem>> = _feedItems.asStateFlow()
@@ -58,6 +53,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     val refreshing: StateFlow<Boolean> = isRefreshing.asStateFlow()
     val loadingMore: StateFlow<Boolean> = isLoadingMore.asStateFlow()
     val hasMore: StateFlow<Boolean> = hasMoreItems.asStateFlow()
+    val currentScreenState: StateFlow<FeedScreenState> = screenState.asStateFlow()
+    val comments: StateFlow<Map<String, List<FeedComment>>> = commentsByItemId.asStateFlow()
 
     init {
         observeFilteredItems()
@@ -72,6 +69,9 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                     .filter { item -> tag == null || item.aiTags.contains(tag) }
             }.collect { filteredItems ->
                 _feedItems.value = filteredItems
+                if (hasLoadedOnce && screenState.value !is FeedScreenState.Error && screenState.value !is FeedScreenState.Loading) {
+                    screenState.value = filteredItems.toScreenState()
+                }
             }
         }
     }
@@ -79,26 +79,47 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * 刷新数据。
      *
-     * viewModelScope.launch 会在主线程启动协程，但 delay / 网络请求不会卡住主线程。
-     * 真实项目中可以把 MockFeedDataSource 替换成 repository.loadFeed()。
+     * 首屏失败时进入 Error；已有内容时刷新失败不清空旧列表，避免演示时页面闪成空白。
      */
     fun refresh() {
         viewModelScope.launch {
+            val showFullLoading = !hasLoadedOnce || screenState.value is FeedScreenState.Error
+            if (showFullLoading) {
+                screenState.value = FeedScreenState.Loading
+            }
             isRefreshing.value = true
-            refreshSeed += 1
-            currentPage.value = 1
-            hasMoreItems.value = true
-            val loadedItems = restorePersistedInteractions(
-                MockFeedDataSource.loadFeedItems(
-                    page = 1,
-                    pageSize = PageSize,
-                    refreshSeed = refreshSeed
+            try {
+                refreshSeed += 1
+                currentPage.value = 1
+                hasMoreItems.value = true
+                val loadedItems = restorePersistedInteractions(
+                    MockFeedDataSource.loadFeedItems(
+                        page = 1,
+                        pageSize = PageSize,
+                        refreshSeed = refreshSeed
+                    )
                 )
-            )
-            allItems.value = loadedItems
-            generateAiInsights(loadedItems, cancelRunning = true)
-            isRefreshing.value = false
+                allItems.value = loadedItems
+                hasLoadedOnce = true
+                screenState.value = loadedItems
+                    .filter { it.category == selectedCategory.value }
+                    .filter { item -> selectedTag.value == null || item.aiTags.contains(selectedTag.value) }
+                    .toScreenState()
+                generateAiInsights(loadedItems, cancelRunning = true)
+            } catch (exception: Exception) {
+                if (allItems.value.isEmpty()) {
+                    screenState.value = FeedScreenState.Error(
+                        message = exception.message ?: "广告加载失败，请稍后重试"
+                    )
+                }
+            } finally {
+                isRefreshing.value = false
+            }
         }
+    }
+
+    fun retry() {
+        refresh()
     }
 
     /**
@@ -112,20 +133,23 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             isLoadingMore.value = true
-            val nextPage = currentPage.value + 1
-            val nextItems = restorePersistedInteractions(
-                MockFeedDataSource.loadFeedItems(
-                    page = nextPage,
-                    pageSize = PageSize,
-                    refreshSeed = refreshSeed,
-                    networkDelayMillis = 700
+            try {
+                val nextPage = currentPage.value + 1
+                val nextItems = restorePersistedInteractions(
+                    MockFeedDataSource.loadFeedItems(
+                        page = nextPage,
+                        pageSize = PageSize,
+                        refreshSeed = refreshSeed,
+                        networkDelayMillis = 700
+                    )
                 )
-            )
-            allItems.value = allItems.value + nextItems
-            generateAiInsights(nextItems, cancelRunning = false)
-            currentPage.value = nextPage
-            hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
-            isLoadingMore.value = false
+                allItems.value = allItems.value + nextItems
+                generateAiInsights(nextItems, cancelRunning = false)
+                currentPage.value = nextPage
+                hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
+            } finally {
+                isLoadingMore.value = false
+            }
         }
     }
 
@@ -142,11 +166,16 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         selectedTag.value = null
     }
 
+    private fun List<FeedItem>.toScreenState(): FeedScreenState {
+        return if (isEmpty()) {
+            FeedScreenState.Empty(isTagFiltered = selectedTag.value != null)
+        } else {
+            FeedScreenState.Content
+        }
+    }
+
     /**
      * 将 Java 持久化层里的点赞/收藏状态恢复到 Mock 数据上。
-     *
-     * Mock 数据每次加载都会创建新的 FeedItem 对象，如果不做这一步，
-     * App 重启或刷新后 UI 就会丢失之前保存的互动状态。
      */
     private fun restorePersistedInteractions(items: List<FeedItem>): List<FeedItem> {
         return items.map { item ->
@@ -176,15 +205,13 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
      * 异步生成 AI 摘要和标签。
      *
      * 这里不阻塞首屏：列表先展示 Mock 内容，AI 结果回来后按 id 局部更新对应 item。
-     * HybridAiInsightGenerator 会优先调用本地 Qwen；如果本地服务不可用，会自动用规则降级。
      */
     private fun generateAiInsights(items: List<FeedItem>, cancelRunning: Boolean) {
         if (cancelRunning) {
             aiInsightJob?.cancel()
         }
         aiInsightJob = viewModelScope.launch {
-            // 本地小模型推理速度有限。这里串行生成，避免一次性 20 个请求把 Ollama 打满，
-            // 同时每生成完一条就按 id 更新状态，UI 可以逐条看到 Qwen 摘要替换 Mock 摘要。
+            // 本地小模型推理速度有限。串行生成可以避免一次性请求把 Ollama 打满。
             items.forEach { item ->
                 val insight = aiInsightGenerator.generate(item)
                 allItems.value = allItems.value.map { current ->
@@ -204,8 +231,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * 点赞状态切换。
      *
-     * 关键点：不要原地修改 List 或 FeedItem。
-     * 我们使用 map + copy 创建新列表和新 item，StateFlow 才能发出新引用，
+     * 使用 map + copy 创建新列表和新 item，StateFlow 才能发出新引用，
      * Compose 也才能精确感知“id 对应的那一项变了”。
      */
     fun toggleLike(id: String) {
@@ -225,9 +251,6 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * 收藏状态切换。
-     *
-     * 列表页、详情页未来只要观察同一个 StateFlow 或同一个 Repository 状态源，
-     * 这里的修改就会同时通知所有页面，实现跨页面同步。
      */
     fun toggleCollect(id: String) {
         allItems.value = allItems.value.map { item ->
@@ -235,6 +258,28 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 val nextCollected = !item.isCollected
                 interactionStore.setCollected(id, nextCollected)
                 item.copy(isCollected = nextCollected)
+            } else {
+                item
+            }
+        }
+    }
+
+    fun addComment(itemId: String, content: String) {
+        val trimmedContent = content.trim()
+        if (trimmedContent.isEmpty()) return
+
+        val currentComments = commentsByItemId.value[itemId].orEmpty()
+        val newComment = FeedComment(
+            id = "${itemId}_comment_${currentComments.size + 1}_${System.currentTimeMillis()}",
+            itemId = itemId,
+            author = "我",
+            content = trimmedContent,
+            timestampLabel = "刚刚"
+        )
+        commentsByItemId.value = commentsByItemId.value + (itemId to (listOf(newComment) + currentComments))
+        allItems.value = allItems.value.map { item ->
+            if (item.id == itemId) {
+                item.copy(commentsCount = item.commentsCount + 1)
             } else {
                 item
             }

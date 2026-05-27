@@ -9,6 +9,8 @@ import kotlinx.coroutines.delay
  * 训练营阶段先保留清晰分层：ViewModel 只关心“拿数据”，不关心数据来自网络、数据库还是 Mock。
  */
 object MockFeedDataSource {
+    var failCount: Int = 0
+
     /**
      * 模拟网络请求。
      *
@@ -22,6 +24,10 @@ object MockFeedDataSource {
         networkDelayMillis: Long = 1_000
     ): List<FeedItem> {
         delay(networkDelayMillis)
+        if (failCount > 0) {
+            failCount -= 1
+            error("模拟网络异常，请稍后重试")
+        }
 
         val covers = listOf(
             "https://images.unsplash.com/photo-1491553895911-0055eca6402d",

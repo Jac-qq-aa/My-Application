@@ -1,6 +1,13 @@
 package com.example.myapplication.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -33,12 +39,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -69,8 +69,7 @@ import com.example.myapplication.data.FeedItemType
  * 广告卡片工厂。
  *
  * 信息流通常有很多卡片形态：大图、小图、视频、直播、商品橱窗等。
- * 工厂函数把“根据 type 选择卡片”的逻辑收敛在一个地方，
- * FeedScreen 只负责列表、滚动、曝光和事件分发，不关心每种卡片怎么画。
+ * 工厂函数把“根据 type 选择卡片”的逻辑收敛在一个地方。
  */
 @Composable
 fun AdCardFactory(
@@ -78,14 +77,15 @@ fun AdCardFactory(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (item.type) {
-        FeedItemType.IMAGE_BIG -> BigImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
-        FeedItemType.IMAGE_SMALL -> SmallImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
-        FeedItemType.VIDEO -> VideoAdCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier)
+        FeedItemType.IMAGE_BIG -> BigImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
+        FeedItemType.IMAGE_SMALL -> SmallImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
+        FeedItemType.VIDEO -> VideoAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
     }
 }
 
@@ -95,11 +95,12 @@ private fun BigImageAdCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier
 ) {
-    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
         AdCoverImage(
             item = item,
             modifier = Modifier
@@ -115,11 +116,12 @@ private fun SmallImageAdCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier
 ) {
-    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
         AdCoverImage(
             item = item,
             modifier = Modifier
@@ -135,11 +137,12 @@ private fun VideoAdCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier
 ) {
-    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onTagClick, onCardClick, modifier) {
+    BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
         val infiniteTransition = rememberInfiniteTransition(label = "videoPulse")
         val pulseScale by infiniteTransition.animateFloat(
             initialValue = 1f,
@@ -188,6 +191,7 @@ private fun BaseCard(
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (String) -> Unit,
+    onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
     modifier: Modifier,
@@ -260,7 +264,6 @@ private fun BaseCard(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // 标签数量不固定时，FlowRow 会自动换行；maxLines 限制最大高度，减少 LazyColumn 滚动中反复测量带来的抖动。
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -323,13 +326,19 @@ private fun BaseCard(
                         )
                     }
                     Text(text = item.likesCount.toString(), style = MaterialTheme.typography.labelLarge)
-                    Icon(
-                        imageVector = Icons.Default.ChatBubbleOutline,
-                        contentDescription = "评论",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(text = item.commentsCount.toString(), style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.clickable { onCommentClick(item.id) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChatBubbleOutline,
+                            contentDescription = "评论",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(text = item.commentsCount.toString(), style = MaterialTheme.typography.labelLarge)
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     var shareSpinSeed by remember { mutableIntStateOf(0) }
                     val shareRotation by animateFloatAsState(
@@ -380,6 +389,7 @@ private fun AdCoverImage(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+            .background(coverBrush())
     ) {
         // 本地封面永远先显示：首屏、弱网、网络失败、列表复用回来时都有稳定画面。
         Image(
@@ -392,7 +402,6 @@ private fun AdCoverImage(
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(item.coverUrl)
-                // Coil 默认就有内存/磁盘缓存；这里显式打开，方便在答辩中说明缓存策略。
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
                 .networkCachePolicy(CachePolicy.ENABLED)
@@ -419,7 +428,6 @@ private fun AdCoverImage(
                     )
                 )
         )
-
         Text(
             text = item.title,
             style = MaterialTheme.typography.titleLarge,
@@ -444,27 +452,12 @@ private fun FeedItem.localFallbackCoverRes(): Int {
     return covers[kotlin.math.abs(id.hashCode()) % covers.size]
 }
 
-@Composable
-private fun CoverFallback(
-    title: String,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.background(
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF1B5E20),
-                    Color(0xFF00695C),
-                    Color(0xFF455A64)
-                )
-            )
-        ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.86f)
+private fun coverBrush(): Brush {
+    return Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF1B5E20),
+            Color(0xFF00695C),
+            Color(0xFF455A64)
         )
-    }
+    )
 }

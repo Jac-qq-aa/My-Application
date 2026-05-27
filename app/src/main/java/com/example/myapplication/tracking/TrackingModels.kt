@@ -31,4 +31,33 @@ data class TrackingStats(
     val likeCount: Int = 0,
     val collectCount: Int = 0,
     val shareCount: Int = 0
+) {
+    val interactionCount: Int
+        get() = likeCount + collectCount + shareCount
+
+    val clickThroughRate: Float
+        get() = if (exposureCount == 0) 0f else clickCount.toFloat() / exposureCount.toFloat()
+
+    val interactionRate: Float
+        get() = if (exposureCount == 0) 0f else interactionCount.toFloat() / exposureCount.toFloat()
+
+    val totalEventCount: Int
+        get() = exposureCount + clickCount
+}
+
+data class StatMetric(
+    val label: String,
+    val value: Int,
+    val description: String
 )
+
+fun TrackingStats.toStatMetrics(): List<StatMetric> {
+    return listOf(
+        StatMetric("曝光", exposureCount, "有效曝光次数"),
+        StatMetric("点击", clickCount, "卡片和互动点击"),
+        StatMetric("点赞", likeCount, "点赞操作"),
+        StatMetric("收藏", collectCount, "收藏操作"),
+        StatMetric("分享", shareCount, "系统分享调用"),
+        StatMetric("互动", interactionCount, "点赞 + 收藏 + 分享")
+    )
+}
