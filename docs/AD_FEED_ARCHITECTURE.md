@@ -32,6 +32,11 @@ app/src/main/java/com/example/myapplication/
 data/
   FeedItem.kt
   MockFeedDataSource.kt
+  ai/
+    AiAdInsight.kt
+    HybridAiInsightGenerator.kt
+    LocalRuleAiInsightGenerator.kt
+    OllamaQwenAiInsightGenerator.kt
   local/
     FeedInteractionStore.java
 
@@ -75,6 +80,16 @@ tracking/
 - 保存用户显式收藏 / 取消收藏的广告 id。
 - ViewModel 加载 Mock 数据后，将持久化状态恢复到 `FeedItem`。
 - Java 类负责本地存储细节，Kotlin ViewModel 不直接操作 SharedPreferences。
+
+`data/ai/` 负责广告内容理解：
+
+- `OllamaQwenAiInsightGenerator` 调用本地 Ollama Qwen 服务生成摘要和标签。
+- `LocalRuleAiInsightGenerator` 在 Qwen 不可用时做降级生成。
+- `HybridAiInsightGenerator` 统一封装“优先 Qwen，失败降级”的策略。
+- `FeedViewModel` 首屏先展示 Mock 内容，再异步用 AI 结果更新对应广告。
+- Qwen 请求按条生成，避免本地轻量模型被高并发压垮。
+- Qwen 首次失败后，本次运行直接使用本地规则，避免错误地址导致每条广告都超时。
+- Qwen 输出必须是 JSON，客户端会做基础容错解析；解析失败时自动使用本地规则。
 
 ### viewmodel 层
 

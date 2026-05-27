@@ -16,6 +16,7 @@
 - Media3 ExoPlayer
 - Coil
 - Java SharedPreferences 持久化层
+- 本地 Qwen/Ollama AI 生成器
 
 ## 已实现功能
 
@@ -43,6 +44,8 @@
 - 本地广告封面先显示，网络图成功后覆盖，弱网滚动也不空白
 - 图片内存缓存 / 磁盘缓存 / 网络缓存策略
 - 点赞 / 收藏状态持久化保存
+- 本地 Qwen 生成广告摘要和智能标签
+- Qwen 不可用时自动降级为本地规则生成
 - AI 摘要展示
 - AI 标签展示
 - 点击标签过滤信息流
@@ -112,6 +115,42 @@ external/
 - 曝光、点击等事件统一走 `AdTracker`。
 - 图片统一使用 Coil 加载，并显式开启内存缓存、磁盘缓存和网络缓存。
 - 点赞 / 收藏持久化由 Java 类 `FeedInteractionStore` 负责，ViewModel 不直接操作 SharedPreferences。
+
+## 本地 Qwen 摘要和标签
+
+项目已内置 Ollama Qwen 客户端：
+
+```text
+app/src/main/java/com/example/myapplication/data/ai/
+```
+
+推荐本地部署：
+
+```bash
+ollama pull qwen2.5:0.5b
+ollama serve
+```
+
+默认地址：
+
+```text
+http://10.0.2.2:11434
+```
+
+说明：
+
+- Android 模拟器访问电脑本机 Ollama，用 `10.0.2.2`。
+- 真机访问电脑 Ollama，需要把 `OllamaQwenAiInsightGenerator` 里的 `baseUrl` 改成电脑局域网 IP，例如 `http://192.168.1.8:11434`。
+- 真机调试时，电脑和手机必须在同一个 Wi-Fi；Windows 防火墙需要允许 `11434` 端口访问。
+- 如果 Ollama 只监听本机地址，先在 Windows 环境变量中设置 `OLLAMA_HOST=0.0.0.0:11434`，再重新执行 `ollama serve`。
+- 如果 Qwen 服务没启动或访问失败，App 会自动使用本地规则生成摘要和标签。
+
+App 端实现方式：
+
+- `OllamaQwenAiInsightGenerator` 请求 Ollama `/api/chat`，要求模型只返回 JSON。
+- `HybridAiInsightGenerator` 优先调用 Qwen，失败自动降级到 `LocalRuleAiInsightGenerator`。
+- 为了避免真机 IP 配错时每条广告都超时，Qwen 首次失败后，本次运行会直接使用本地规则。
+- `FeedViewModel` 不阻塞首屏，先展示 Mock 数据，再逐条把 Qwen 摘要和标签更新回 `StateFlow`。
 
 ## AI 声明
 

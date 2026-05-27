@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.FeedCategory
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.MockFeedDataSource
+import com.example.myapplication.data.ai.HybridAiInsightGenerator
 import com.example.myapplication.data.local.FeedInteractionStore
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +29,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val interactionStore = FeedInteractionStore(application)
+    private val aiInsightGenerator = HybridAiInsightGenerator()
     private val allItems = MutableStateFlow<List<FeedItem>>(emptyList())
     private val selectedCategory = MutableStateFlow(FeedCategory.FEATURED)
     private val selectedTag = MutableStateFlow<String?>(null)
@@ -35,6 +38,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val hasMoreItems = MutableStateFlow(true)
     private val currentPage = MutableStateFlow(1)
     private var refreshSeed = 0
+    private var aiInsightJob: Job? = null
 
     /**
      * 当前 Tab 下真正给列表展示的数据。
@@ -84,13 +88,15 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
             refreshSeed += 1
             currentPage.value = 1
             hasMoreItems.value = true
-            allItems.value = restorePersistedInteractions(
+            val loadedItems = restorePersistedInteractions(
                 MockFeedDataSource.loadFeedItems(
-                page = 1,
-                pageSize = PageSize,
-                refreshSeed = refreshSeed
+                    page = 1,
+                    pageSize = PageSize,
+                    refreshSeed = refreshSeed
                 )
             )
+            allItems.value = loadedItems
+            generateAiInsights(loadedItems, cancelRunning = true)
             isRefreshing.value = false
         }
     }
@@ -116,6 +122,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
             allItems.value = allItems.value + nextItems
+            generateAiInsights(nextItems, cancelRunning = false)
             currentPage.value = nextPage
             hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
             isLoadingMore.value = false
@@ -162,6 +169,35 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                     else -> item.likesCount
                 }
             )
+        }
+    }
+
+    /**
+     * 异步生成 AI 摘要和标签。
+     *
+     * 这里不阻塞首屏：列表先展示 Mock 内容，AI 结果回来后按 id 局部更新对应 item。
+     * HybridAiInsightGenerator 会优先调用本地 Qwen；如果本地服务不可用，会自动用规则降级。
+     */
+    private fun generateAiInsights(items: List<FeedItem>, cancelRunning: Boolean) {
+        if (cancelRunning) {
+            aiInsightJob?.cancel()
+        }
+        aiInsightJob = viewModelScope.launch {
+            // 本地小模型推理速度有限。这里串行生成，避免一次性 20 个请求把 Ollama 打满，
+            // 同时每生成完一条就按 id 更新状态，UI 可以逐条看到 Qwen 摘要替换 Mock 摘要。
+            items.forEach { item ->
+                val insight = aiInsightGenerator.generate(item)
+                allItems.value = allItems.value.map { current ->
+                    if (current.id == item.id) {
+                        current.copy(
+                            aiSummary = insight.summary,
+                            aiTags = insight.tags
+                        )
+                    } else {
+                        current
+                    }
+                }
+            }
         }
     }
 
