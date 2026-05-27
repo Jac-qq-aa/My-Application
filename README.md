@@ -134,13 +134,13 @@ ollama serve
 默认地址：
 
 ```text
-http://10.0.2.2:11434
+http://10.242.173.63:11434
 ```
 
 说明：
 
-- Android 模拟器访问电脑本机 Ollama，用 `10.0.2.2`。
-- 真机访问电脑 Ollama，需要把 `OllamaQwenAiInsightGenerator` 里的 `baseUrl` 改成电脑局域网 IP，例如 `http://192.168.1.8:11434`。
+- 当前配置为真机访问电脑 Ollama：`http://10.242.173.63:11434`。
+- Android 模拟器访问电脑本机 Ollama，需要把地址改回 `http://10.0.2.2:11434`。
 - 真机调试时，电脑和手机必须在同一个 Wi-Fi；Windows 防火墙需要允许 `11434` 端口访问。
 - 如果 Ollama 只监听本机地址，先在 Windows 环境变量中设置 `OLLAMA_HOST=0.0.0.0:11434`，再重新执行 `ollama serve`。
 - 如果 Qwen 服务没启动或访问失败，App 会自动使用本地规则生成摘要和标签。

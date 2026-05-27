@@ -508,8 +508,8 @@ AI 不能自由输出散文本，必须结构化。
 - 新增 `data/ai/`。
 - `OllamaQwenAiInsightGenerator` 调用本地 Ollama `/api/chat`。
 - 默认模型为 `qwen2.5:0.5b`。
-- 默认地址为 `http://10.0.2.2:11434`，适用于模拟器访问电脑。
-- 真机调试时需要改成电脑局域网 IP。
+- 当前地址为 `http://10.242.173.63:11434`，适用于真机访问电脑。
+- 模拟器调试时需要改回 `http://10.0.2.2:11434`。
 - `HybridAiInsightGenerator` 优先调用 Qwen，失败后降级到 `LocalRuleAiInsightGenerator`。
 - ViewModel 首屏先展示 Mock 内容，然后异步按广告 id 更新 AI 摘要和标签。
 - Qwen 生成采用受控串行请求，避免本地小模型被一次性并发请求打满。
@@ -525,8 +525,8 @@ ollama serve
 
 连接策略：
 
+- Android 真机使用电脑局域网 IP，当前为 `http://10.242.173.63:11434`。
 - Android Emulator 使用 `http://10.0.2.2:11434`。
-- Android 真机使用电脑局域网 IP，例如 `http://192.168.1.8:11434`。
 - 真机需要电脑和手机在同一 Wi-Fi，并允许 Windows 防火墙访问 `11434`。
 - 如果 Ollama 只监听本机地址，需要设置 `OLLAMA_HOST=0.0.0.0:11434` 后重启 Ollama。
 

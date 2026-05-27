@@ -13,8 +13,8 @@ import java.net.URL
 /**
  * 本地 Qwen/Ollama 客户端。
  *
- * 默认地址 `http://10.0.2.2:11434` 适用于 Android Emulator 访问电脑本机 Ollama。
- * 真机调试时需要把 baseUrl 改成电脑局域网 IP，例如 `http://192.168.1.8:11434`。
+ * 当前地址 `http://10.242.173.63:11434` 适用于真机访问电脑本机 Ollama。
+ * 如果改用 Android Emulator，可以把 baseUrl 改回 `http://10.0.2.2:11434`。
  *
  * 推荐本地部署命令：
  * 1. 安装 Ollama；
@@ -22,7 +22,7 @@ import java.net.URL
  * 3. 执行 `ollama serve`。
  */
 class OllamaQwenAiInsightGenerator(
-    private val baseUrl: String = "http://10.0.2.2:11434",
+    private val baseUrl: String = "http://10.242.173.63:11434",
     private val model: String = "qwen2.5:0.5b",
     private val timeoutMillis: Long = 6_000
 ) : AiInsightGenerator {
