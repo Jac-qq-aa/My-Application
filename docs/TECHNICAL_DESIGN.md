@@ -292,6 +292,8 @@ viewmodel/FeedViewModel.kt
 - 页面状态由 `FeedViewModel` 持有。
 - `viewModelScope` 管理协程生命周期。
 - `StateFlow` 暴露给 Compose。
+- 点赞 / 收藏的用户操作状态通过 Java 编写的 `FeedInteractionStore` 写入 SharedPreferences。
+- Mock 数据重新加载后，ViewModel 会把 SharedPreferences 中的显式用户操作状态恢复到 `FeedItem` 上。
 
 核心链路：
 
@@ -317,6 +319,36 @@ viewmodel/FeedViewModel.kt
 
 - 当前训练营阶段使用共享 ViewModel。
 - 当接入网络、Room、Paging 后，升级为 Repository 单一事实源。
+
+### 5.4 本地持久化方案
+
+参考项目中常见的本地持久化方案包括 Room、DataStore 和 SharedPreferences。当前项目优先保存的是轻量互动状态，因此先使用 Java + SharedPreferences 实现：
+
+```text
+data/local/FeedInteractionStore.java
+```
+
+保存内容：
+
+- 用户显式点赞的广告 id。
+- 用户显式取消点赞的广告 id。
+- 用户显式收藏的广告 id。
+- 用户显式取消收藏的广告 id。
+
+这样设计的原因：
+
+- 仅保存少量 id 集合，SharedPreferences 足够轻量。
+- Java 类满足“用 Java 实现持久化保存”的训练要求。
+- Kotlin ViewModel 只依赖存储类方法，不直接依赖 SharedPreferences API。
+- 后续升级 Room 时，可以把 `FeedInteractionStore` 替换为 DAO/Repository，UI 层不需要大改。
+
+方案对比：
+
+| 方案 | 优点 | 缺点 | 当前结论 |
+| --- | --- | --- | --- |
+| SharedPreferences | 简单、轻量、适合保存少量互动状态 | 不适合复杂查询和大数据量 | 当前采用 |
+| DataStore | 类型更安全，异步 Flow 友好 | 接入成本略高 | 后续可选 |
+| Room | 适合广告缓存、离线列表、复杂查询 | 对当前阶段偏重 | 后续演进 |
 
 ## 6. 动态卡片与 Compose 性能方案
 
@@ -534,6 +566,7 @@ AI 不能自由输出散文本，必须结构化。
 - 点赞 / 收藏。
 - 分享交互。
 - 详情页点赞 / 收藏与列表同步。
+- 点赞 / 收藏状态持久化保存。
 - 页面切换动画。
 - 点赞浮动爱心彩蛋。
 - 收藏 / 分享按钮动效。

@@ -15,6 +15,7 @@
 - Navigation Compose
 - Media3 ExoPlayer
 - Coil
+- Java SharedPreferences 持久化层
 
 ## 已实现功能
 
@@ -41,6 +42,7 @@
 - 网络图片失败时自动显示本地广告封面
 - 本地广告封面先显示，网络图成功后覆盖，弱网滚动也不空白
 - 图片内存缓存 / 磁盘缓存 / 网络缓存策略
+- 点赞 / 收藏状态持久化保存
 - AI 摘要展示
 - AI 标签展示
 - 点击标签过滤信息流
@@ -54,6 +56,7 @@
 ```text
 app/src/main/java/com/example/myapplication/
   data/          数据模型与 Mock 数据源
+    local/       Java SharedPreferences 持久化存储
   viewmodel/     FeedViewModel，负责状态管理
   ui/feed/       信息流页面
   ui/detail/     广告详情页
@@ -108,6 +111,7 @@ external/
 - 卡片类型通过 `contentType` 区分。
 - 曝光、点击等事件统一走 `AdTracker`。
 - 图片统一使用 Coil 加载，并显式开启内存缓存、磁盘缓存和网络缓存。
+- 点赞 / 收藏持久化由 Java 类 `FeedInteractionStore` 负责，ViewModel 不直接操作 SharedPreferences。
 
 ## AI 声明
 

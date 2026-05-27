@@ -1,10 +1,12 @@
 package com.example.myapplication.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.FeedCategory
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.MockFeedDataSource
+import com.example.myapplication.data.local.FeedInteractionStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,11 +21,12 @@ import kotlinx.coroutines.launch
  * 2. 通过 viewModelScope 启动协程，自动跟随 ViewModel 生命周期取消任务；
  * 3. 通过 StateFlow 向 UI 暴露“可观察、可订阅、始终有当前值”的响应式数据。
  */
-class FeedViewModel : ViewModel() {
+class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val PageSize = 20
     }
 
+    private val interactionStore = FeedInteractionStore(application)
     private val allItems = MutableStateFlow<List<FeedItem>>(emptyList())
     private val selectedCategory = MutableStateFlow(FeedCategory.FEATURED)
     private val selectedTag = MutableStateFlow<String?>(null)
@@ -81,10 +84,12 @@ class FeedViewModel : ViewModel() {
             refreshSeed += 1
             currentPage.value = 1
             hasMoreItems.value = true
-            allItems.value = MockFeedDataSource.loadFeedItems(
+            allItems.value = restorePersistedInteractions(
+                MockFeedDataSource.loadFeedItems(
                 page = 1,
                 pageSize = PageSize,
                 refreshSeed = refreshSeed
+                )
             )
             isRefreshing.value = false
         }
@@ -102,11 +107,13 @@ class FeedViewModel : ViewModel() {
         viewModelScope.launch {
             isLoadingMore.value = true
             val nextPage = currentPage.value + 1
-            val nextItems = MockFeedDataSource.loadFeedItems(
-                page = nextPage,
-                pageSize = PageSize,
-                refreshSeed = refreshSeed,
-                networkDelayMillis = 700
+            val nextItems = restorePersistedInteractions(
+                MockFeedDataSource.loadFeedItems(
+                    page = nextPage,
+                    pageSize = PageSize,
+                    refreshSeed = refreshSeed,
+                    networkDelayMillis = 700
+                )
             )
             allItems.value = allItems.value + nextItems
             currentPage.value = nextPage
@@ -129,6 +136,36 @@ class FeedViewModel : ViewModel() {
     }
 
     /**
+     * 将 Java 持久化层里的点赞/收藏状态恢复到 Mock 数据上。
+     *
+     * Mock 数据每次加载都会创建新的 FeedItem 对象，如果不做这一步，
+     * App 重启或刷新后 UI 就会丢失之前保存的互动状态。
+     */
+    private fun restorePersistedInteractions(items: List<FeedItem>): List<FeedItem> {
+        return items.map { item ->
+            val restoredLiked = if (interactionStore.hasLikeOverride(item.id)) {
+                interactionStore.isLiked(item.id)
+            } else {
+                item.isLiked
+            }
+            val restoredCollected = if (interactionStore.hasCollectOverride(item.id)) {
+                interactionStore.isCollected(item.id)
+            } else {
+                item.isCollected
+            }
+            item.copy(
+                isLiked = restoredLiked,
+                isCollected = restoredCollected,
+                likesCount = when {
+                    restoredLiked && !item.isLiked -> item.likesCount + 1
+                    !restoredLiked && item.isLiked -> (item.likesCount - 1).coerceAtLeast(0)
+                    else -> item.likesCount
+                }
+            )
+        }
+    }
+
+    /**
      * 点赞状态切换。
      *
      * 关键点：不要原地修改 List 或 FeedItem。
@@ -139,6 +176,7 @@ class FeedViewModel : ViewModel() {
         allItems.value = allItems.value.map { item ->
             if (item.id == id) {
                 val nextLiked = !item.isLiked
+                interactionStore.setLiked(id, nextLiked)
                 item.copy(
                     isLiked = nextLiked,
                     likesCount = if (nextLiked) item.likesCount + 1 else (item.likesCount - 1).coerceAtLeast(0)
@@ -158,7 +196,9 @@ class FeedViewModel : ViewModel() {
     fun toggleCollect(id: String) {
         allItems.value = allItems.value.map { item ->
             if (item.id == id) {
-                item.copy(isCollected = !item.isCollected)
+                val nextCollected = !item.isCollected
+                interactionStore.setCollected(id, nextCollected)
+                item.copy(isCollected = nextCollected)
             } else {
                 item
             }

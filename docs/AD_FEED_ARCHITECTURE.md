@@ -32,6 +32,8 @@ app/src/main/java/com/example/myapplication/
 data/
   FeedItem.kt
   MockFeedDataSource.kt
+  local/
+    FeedInteractionStore.java
 
 viewmodel/
   FeedViewModel.kt
@@ -64,6 +66,15 @@ tracking/
 - 不在 UI 中散落字符串类型判断，而是使用 `FeedItemType` 枚举
 
 这样做的好处是：状态不可变、变化可追踪、Compose 更容易做精准重组。
+
+`FeedInteractionStore.java` 使用 Java + SharedPreferences 保存点赞/收藏互动状态。
+
+保存策略：
+
+- 保存用户显式点赞 / 取消点赞的广告 id。
+- 保存用户显式收藏 / 取消收藏的广告 id。
+- ViewModel 加载 Mock 数据后，将持久化状态恢复到 `FeedItem`。
+- Java 类负责本地存储细节，Kotlin ViewModel 不直接操作 SharedPreferences。
 
 ### viewmodel 层
 
