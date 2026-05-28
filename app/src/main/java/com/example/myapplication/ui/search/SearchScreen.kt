@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -325,7 +325,7 @@ private fun SearchInputBar(
             )
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = onSubmit, enabled = value.isNotBlank()) {
-                Icon(imageVector = Icons.Default.Send, contentDescription = "搜索")
+                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "搜索")
             }
         }
     }
