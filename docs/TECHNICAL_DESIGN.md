@@ -191,7 +191,7 @@ ui/feed/FeedScreen.kt
 
 - 使用 `AdCardFactory` 根据 `FeedItemType` 分发到不同卡片。
 - 卡片共享标题、描述、AI 摘要、标签、互动栏。
-- 视频卡片先展示封面和播放按钮，后续接入 Media3。
+- 视频卡片先展示封面和播放按钮，点击后接入 Media3 ExoPlayer 播放真实 MP4。
 
 方案对比：
 
@@ -408,7 +408,7 @@ Compose 中没有传统 RecyclerView 的 ViewHolder，但 LazyColumn 会复用 i
 当前状态：
 
 - 已预留 `VideoPlayerPool` 和 `SimpleVideoPlayerPool`。
-- 视频卡片暂时展示播放图标占位。
+- 视频卡片使用 Media3 `PlayerView` 播放公开 MP4，并通过播放器池租借 / 释放 ExoPlayer。
 
 ### 7.3 图片/AI 缓存
 
@@ -612,7 +612,7 @@ ollama serve
 - 本地统计面板展示曝光、点击、点赞、收藏、分享数据。
 - 对话式搜索页面。
 - 本地关键词匹配搜索。
-- Media3 ExoPlayer 复用池接口。
+- Media3 ExoPlayer 复用池接口和基础点击播放。
 - README 项目说明和 AI 声明。
 - 开发文档和参考项目文档。
 
@@ -624,7 +624,7 @@ ollama serve
 ### 可选加分
 
 - Qwen 意图解析搜索。
-- Media3 真视频播放。
+- 可见视频自动播放 / 静音开关。
 - Compose 性能数据对比。
 - 测试用例。
 
@@ -655,7 +655,7 @@ ollama serve
 目标：提高技术方案设计和答辩表现。
 
 - 用 Coil 加载效果做首屏体验和缓存命中验证。
-- 视频卡片接入 Media3 基础播放。
+- 视频卡片继续增强为可见自动播放、离屏暂停和首帧预加载。
 - 使用 Compose Stability Analyzer 或 Layout Inspector 验证重组情况。
 - 完善 README。
 - 录制 3-8 分钟演示视频。

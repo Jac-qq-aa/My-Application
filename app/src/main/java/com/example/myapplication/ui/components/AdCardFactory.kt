@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.components
 
+import androidx.annotation.OptIn
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -12,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -39,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,6 +60,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
@@ -143,44 +151,107 @@ private fun VideoAdCard(
     modifier: Modifier
 ) {
     BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
-        val infiniteTransition = rememberInfiniteTransition(label = "videoPulse")
-        val pulseScale by infiniteTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.08f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "videoPulseScale"
-        )
+        VideoMedia(item = item)
+    }
+}
 
-        Box {
-            AdCoverImage(
-                item = item,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-            )
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = Color.Black.copy(alpha = 0.48f),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .graphicsLayer {
-                        scaleX = pulseScale
-                        scaleY = pulseScale
-                    }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "播放",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .padding(14.dp)
-                        .size(32.dp)
-                )
+@Composable
+@OptIn(UnstableApi::class)
+private fun VideoMedia(item: FeedItem) {
+    val videoUrl = item.videoUrl
+    var isPlaying by remember(item.id) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val player = remember(item.id, videoUrl) {
+        if (videoUrl == null) {
+            null
+        } else {
+            FeedVideoPlayerPool.acquire(context, item.id).apply {
+                repeatMode = Player.REPEAT_MODE_ONE
+                volume = 0f
+                setMediaItem(MediaItem.fromUri(videoUrl))
+                prepare()
             }
         }
+    }
+
+    DisposableEffect(item.id, player) {
+        onDispose {
+            player?.pause()
+            FeedVideoPlayerPool.release(item.id)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+    ) {
+        if (player != null && isPlaying) {
+            AndroidView(
+                factory = { viewContext ->
+                    PlayerView(viewContext).apply {
+                        useController = true
+                        this.player = player
+                    }
+                },
+                update = { playerView ->
+                    playerView.player = player
+                    player.playWhenReady = true
+                },
+                modifier = Modifier.matchParentSize()
+            )
+        } else {
+            AdCoverImage(
+                item = item,
+                modifier = Modifier.matchParentSize()
+            )
+            VideoPlayOverlay(
+                enabled = videoUrl != null,
+                onClick = {
+                    if (videoUrl != null) {
+                        isPlaying = true
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.VideoPlayOverlay(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "videoPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "videoPulseScale"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Black.copy(alpha = 0.48f),
+        modifier = Modifier
+            .align(Alignment.Center)
+            .clickable(enabled = enabled, onClick = onClick)
+            .graphicsLayer {
+                scaleX = pulseScale
+                scaleY = pulseScale
+            }
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = if (enabled) "播放" else "暂无视频",
+            tint = Color.White,
+            modifier = Modifier
+                .padding(14.dp)
+                .size(32.dp)
+        )
     }
 }
 

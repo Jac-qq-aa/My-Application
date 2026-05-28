@@ -44,6 +44,11 @@ object MockFeedDataSource {
             listOf("视频创意", "强种草", "年轻人偏好", "学生党"),
             listOf("电商爆款", "满减", "包邮", "复购高", "性价比")
         )
+        val videoUrls = listOf(
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+        )
 
         val startIndex = (page - 1) * pageSize
         return List(pageSize) { localIndex ->
@@ -70,7 +75,7 @@ object MockFeedDataSource {
                 type = type,
                 category = category,
                 coverUrl = "${covers[index % covers.size]}?auto=format&fit=crop&w=1200&q=80",
-                videoUrl = if (type == FeedItemType.VIDEO) "https://example.com/video/refresh_${refreshSeed}_ad_${index + 1}.mp4" else null,
+                videoUrl = if (type == FeedItemType.VIDEO) videoUrls[index % videoUrls.size] else null,
                 likesCount = 128 + refreshSeed * 11 + index * 17,
                 commentsCount = 12 + refreshSeed + index * 3,
                 isLiked = index % 5 == 0,

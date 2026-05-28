@@ -12,7 +12,7 @@
 | 1.2 | LazyColumn key + contentType 优化 | ✅ 已实现 | `ui/feed/FeedScreen.kt:163-168` | Layout Inspector 观察重组范围 | 若 key 不稳定会导致全量重组，当前使用 `item.id` 已保证 |
 | 1.3 | 大图卡片 (IMAGE_BIG) | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 滚动到对应类型卡片，封面占满 16:9 区域 | 使用 Coil 加载真实网络图片，渐变色作为兜底 |
 | 1.4 | 小图卡片 (IMAGE_SMALL) | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 滚动到对应类型卡片，封面为 4:3 区域 | 使用 Coil 加载真实网络图片，渐变色作为兜底 |
-| 1.5 | 视频卡片 (VIDEO) 占位 | ✅ 已实现 | `ui/components/AdCardFactory.kt:97-111` | 滚动到视频卡片，显示播放按钮 + 呼吸动效 | 当前仅占位，不实际播放视频 |
+| 1.5 | 视频卡片 (VIDEO) 播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 滚动到视频卡片，点击播放按钮播放真实 MP4 | 使用 Media3 ExoPlayer + PlayerView |
 | 1.6 | 卡片工厂模式 (AdCardFactory) | ✅ 已实现 | `ui/components/AdCardFactory.kt:43-65` | 根据 `FeedItemType` 枚举分发不同卡片 | 扩展新卡片类型只需加一个 when 分支 |
 | 1.7 | 卡片共享组件 (BaseCard) | ✅ 已实现 | `ui/components/AdCardFactory.kt:113-389` | 所有卡片复用标题/摘要/标签/互动栏 | BaseCard 承载了大部分 UI，改动需注意影响面 |
 | 1.8 | 封面图片 + 渐变兜底 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 每张卡片的封面区域加载网络图片，失败时保留渐变兜底 | 已接入 Coil |
@@ -124,11 +124,11 @@
 | 序号 | 功能 | 状态 | 对应文件 | 演示方式 | 风险 / 备注 |
 |------|------|------|----------|----------|-------------|
 | 8.1 | VideoPlayerPool 接口 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt:5-12` | 查看接口定义：acquire/release/releaseAll | 接口已定义，等待实现 |
-| 8.2 | SimpleVideoPlayerPool 实现 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt:14-39` | 基于 `Map<String, ExoPlayer>` 的简单实现 | 未实际接入 UI |
-| 8.3 | Media3 ExoPlayer 依赖 | ✅ 已引入 | `app/build.gradle.kts:53` | Gradle 已引入 `media3-exoplayer:1.8.0` | 依赖就绪 |
-| 8.4 | 真实视频播放 | ❌ 未实现 | — | — | 视频卡片仅显示占位图+播放按钮 |
-| 8.5 | 可见视频自动播放 / 离屏暂停 | ❌ 未实现 | — | — | 需结合曝光检测 + 播放器池 |
-| 8.6 | 静音自动播放 | ❌ 未实现 | — | — | 计划特性 |
+| 8.2 | SimpleVideoPlayerPool 实现 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt` | 基于 `Map<String, ExoPlayer>` 的简单实现 | 已通过视频卡片租借/释放播放器 |
+| 8.3 | Media3 ExoPlayer / UI 依赖 | ✅ 已引入 | `app/build.gradle.kts` | Gradle 已引入 `media3-exoplayer` 和 `media3-ui` | 依赖就绪 |
+| 8.4 | 真实视频播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `data/MockFeedDataSource.kt` | 滚动到视频卡片，点击播放按钮开始播放公开 MP4 | 当前为点击播放，不自动播放 |
+| 8.5 | 离屏暂停 / 释放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频卡片离开组合时 pause 并 release | 基于 Compose dispose 生命周期 |
+| 8.6 | 静音播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频默认音量 0，适合信息流场景 | 可在后续加静音按钮 |
 | 8.7 | 首帧预加载 | ❌ 未实现 | — | — | 计划特性 |
 
 ---

@@ -37,3 +37,10 @@ class SimpleVideoPlayerPool : VideoPlayerPool {
         players.clear()
     }
 }
+
+/**
+ * 当前训练营 Demo 先用一个进程内共享池。
+ *
+ * 真实项目可以进一步按页面生命周期创建/销毁池，或者限制池大小，只保留当前可见视频附近的播放器。
+ */
+object FeedVideoPlayerPool : VideoPlayerPool by SimpleVideoPlayerPool()
