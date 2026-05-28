@@ -408,7 +408,7 @@ Compose 中没有传统 RecyclerView 的 ViewHolder，但 LazyColumn 会复用 i
 当前状态：
 
 - 已预留 `VideoPlayerPool` 和 `SimpleVideoPlayerPool`。
-- 视频卡片使用 Media3 `PlayerView` 播放公开 MP4，并通过播放器池租借 / 释放 ExoPlayer。
+- 视频卡片使用 Media3 `PlayerView` 播放 `res/raw/ad_demo_video.mp4` 本地 MP4，并通过播放器池租借 / 释放 ExoPlayer。
 
 ### 7.3 图片/AI 缓存
 
