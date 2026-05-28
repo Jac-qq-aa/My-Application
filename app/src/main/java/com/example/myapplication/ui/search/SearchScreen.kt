@@ -247,7 +247,7 @@ private fun SearchIntro(
                     text = when {
                         isParsing -> "正在把自然语言转换成关键词、标签、频道和媒体类型。"
                         activeQuery.isBlank() -> "可输入“适合学生党的性价比运动装备”“附近周末优惠”“视频创意”等自然语言。"
-                        else -> "找到 $resultCount 条匹配广告。解析来源：${activeIntent?.source.displayName()}；解析词：${activeIntent?.terms.orEmpty().joinToString("、")}"
+                        else -> "找到 $resultCount 条匹配广告。解析来源：${activeIntent?.source?.displayName().orEmpty()}；解析词：${activeIntent?.terms.orEmpty().joinToString("、")}"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
