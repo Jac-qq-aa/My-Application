@@ -542,17 +542,29 @@ ollama serve
 
 系统返回匹配广告。
 
-推荐初版方案：
+当前实现：
 
 - 用户输入 query。
-- 从广告的 `title`、`description`、`aiSummary`、`aiTags` 中做关键词匹配。
+- `OllamaQwenSearchIntentParser` 优先调用本地 Qwen，把自然语言解析为 `keywords`、`tags`、`category`、`mediaType`。
+- `HybridSearchIntentParser` 在 Qwen 不可用时降级到 `LocalRuleSearchIntentParser`。
+- 从广告的 `title`、`description`、`aiSummary`、`aiTags`、频道、卡片类型中做可解释匹配。
 - 匹配结果展示为信息流列表。
 
-增强方案：
+输出格式：
 
-- 调大模型把自然语言 query 解析成结构化意图。
-- 例如：`品类=运动`、`人群=学生党`、`偏好=性价比`。
-- 再用结构化条件过滤广告。
+```json
+{
+  "keywords": ["运动装备"],
+  "tags": ["学生党", "性价比"],
+  "category": "电商",
+  "mediaType": "image_big"
+}
+```
+
+后续增强：
+
+- 把搜索召回结果持久化，支持历史搜索。
+- 增加更细粒度的排序权重和解释信息。
 
 ## 10. 动画方案
 
@@ -612,6 +624,7 @@ ollama serve
 - 本地统计面板展示曝光、点击、点赞、收藏、分享数据。
 - 对话式搜索页面。
 - 本地关键词匹配搜索。
+- Qwen 意图解析搜索。
 - Media3 ExoPlayer 复用池接口和基础点击播放。
 - README 项目说明和 AI 声明。
 - 开发文档和参考项目文档。
@@ -623,7 +636,6 @@ ollama serve
 
 ### 可选加分
 
-- Qwen 意图解析搜索。
 - 可见视频自动播放 / 静音开关。
 - Compose 性能数据对比。
 - 测试用例。

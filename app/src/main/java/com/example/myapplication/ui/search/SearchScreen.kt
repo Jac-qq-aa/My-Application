@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,16 +47,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.FeedItem
+import com.example.myapplication.data.ai.HybridSearchIntentParser
+import com.example.myapplication.data.ai.SearchIntent
+import com.example.myapplication.data.ai.SearchIntentSource
 import com.example.myapplication.tracking.AdTracker
 import com.example.myapplication.tracking.ClickEvent
 import com.example.myapplication.ui.components.AdCardFactory
 import com.example.myapplication.ui.share.shareFeedItem
 import com.example.myapplication.viewmodel.FeedViewModel
+import kotlinx.coroutines.launch
 
 private data class SearchMessage(
     val id: Long,
     val query: String,
-    val resultCount: Int
+    val resultCount: Int,
+    val intent: SearchIntent
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,14 +75,19 @@ fun SearchScreen(
 ) {
     val allItems by viewModel.allFeedItems.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val searchIntentParser = remember { HybridSearchIntentParser() }
     var query by remember { mutableStateOf("") }
     var activeQuery by remember { mutableStateOf("") }
+    var activeIntent by remember { mutableStateOf<SearchIntent?>(null) }
+    var isParsing by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<SearchMessage>() }
-    val results = remember(activeQuery, allItems) {
-        if (activeQuery.isBlank()) {
+    val results = remember(activeQuery, activeIntent, allItems) {
+        val intent = activeIntent
+        if (activeQuery.isBlank() || intent == null) {
             emptyList()
         } else {
-            allItems.matchQuery(activeQuery)
+            allItems.matchIntent(activeQuery, intent)
         }
     }
     val animatedCount by animateIntAsState(targetValue = results.size, label = "searchResultCount")
@@ -82,11 +95,25 @@ fun SearchScreen(
     fun submitSearch(text: String = query) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
-        activeQuery = trimmed
         query = ""
-        val resultCount = allItems.matchQuery(trimmed).size
-        messages.add(0, SearchMessage(id = System.nanoTime(), query = trimmed, resultCount = resultCount))
-        tracker.trackClick(ClickEvent("search", "query:$trimmed"))
+        isParsing = true
+        scope.launch {
+            val intent = searchIntentParser.parse(trimmed)
+            val matchedItems = allItems.matchIntent(trimmed, intent)
+            activeQuery = trimmed
+            activeIntent = intent
+            messages.add(
+                0,
+                SearchMessage(
+                    id = System.nanoTime(),
+                    query = trimmed,
+                    resultCount = matchedItems.size,
+                    intent = intent
+                )
+            )
+            tracker.trackClick(ClickEvent("search", "query:${intent.source}:$trimmed"))
+            isParsing = false
+        }
     }
 
     Scaffold(
@@ -117,7 +144,9 @@ fun SearchScreen(
                 item(key = "search_intro", contentType = "intro") {
                     SearchIntro(
                         activeQuery = activeQuery,
+                        activeIntent = activeIntent,
                         resultCount = animatedCount,
+                        isParsing = isParsing,
                         onQuickSearch = ::submitSearch
                     )
                 }
@@ -179,7 +208,9 @@ fun SearchScreen(
 @OptIn(ExperimentalLayoutApi::class)
 private fun SearchIntro(
     activeQuery: String,
+    activeIntent: SearchIntent?,
     resultCount: Int,
+    isParsing: Boolean,
     onQuickSearch: (String) -> Unit
 ) {
     Surface(
@@ -194,20 +225,34 @@ private fun SearchIntro(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = if (activeQuery.isBlank()) "描述你想看的广告" else "正在搜索：$activeQuery",
+                text = when {
+                    isParsing -> "Qwen 正在解析搜索意图"
+                    activeQuery.isBlank() -> "描述你想看的广告"
+                    else -> "正在搜索：$activeQuery"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
-            Text(
-                text = if (activeQuery.isBlank()) {
-                    "可输入“适合学生党的性价比运动装备”“附近周末优惠”“视频创意”等自然语言。"
-                } else {
-                    "找到 $resultCount 条匹配广告。当前版本先用标题、描述、AI摘要和标签做本地匹配。"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isParsing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    text = when {
+                        isParsing -> "正在把自然语言转换成关键词、标签、频道和媒体类型。"
+                        activeQuery.isBlank() -> "可输入“适合学生党的性价比运动装备”“附近周末优惠”“视频创意”等自然语言。"
+                        else -> "找到 $resultCount 条匹配广告。解析来源：${activeIntent?.source.displayName()}；解析词：${activeIntent?.terms.orEmpty().joinToString("、")}"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -242,6 +287,11 @@ private fun SearchMessageBubble(message: SearchMessage) {
                 )
                 Text(
                     text = "系统已匹配 ${message.resultCount} 条广告",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "解析来源：${message.intent.source.displayName()}；解析词：${message.intent.terms.joinToString("、")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -281,12 +331,13 @@ private fun SearchInputBar(
     }
 }
 
-private fun List<FeedItem>.matchQuery(query: String): List<FeedItem> {
-    val tokens = query
+private fun List<FeedItem>.matchIntent(query: String, intent: SearchIntent): List<FeedItem> {
+    val tokens = (intent.terms + query
         .lowercase()
-        .split(" ", "，", ",", "。", "、")
+        .split(" ", "，", ",", "。", "、"))
         .map { it.trim() }
         .filter { it.isNotEmpty() }
+        .distinct()
 
     if (tokens.isEmpty()) return emptyList()
 
@@ -310,4 +361,11 @@ private fun List<FeedItem>.matchQuery(query: String): List<FeedItem> {
     }
         .sortedWith(compareByDescending<Pair<FeedItem, Int>> { it.second }.thenBy { it.first.id })
         .map { it.first }
+}
+
+private fun SearchIntentSource.displayName(): String {
+    return when (this) {
+        SearchIntentSource.QWEN -> "Qwen"
+        SearchIntentSource.LOCAL_RULE -> "本地规则"
+    }
 }
