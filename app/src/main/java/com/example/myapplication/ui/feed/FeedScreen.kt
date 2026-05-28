@@ -2,6 +2,8 @@ package com.example.myapplication.ui.feed
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -29,14 +31,15 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
@@ -123,6 +126,12 @@ fun FeedScreen(
                     viewModel.loadMore()
                 }
             }
+    }
+
+    LaunchedEffect(currentTag) {
+        if (currentTag != null) {
+            listState.animateScrollToItem(0)
+        }
     }
 
     Scaffold(
@@ -244,12 +253,13 @@ private fun FeedContentList(
         item(key = "tag_filter", contentType = "filter") {
             AnimatedVisibility(
                 visible = currentTag != null,
-                enter = fadeIn() + expandVertically(),
+                enter = fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(240)),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                AssistChip(
-                    onClick = onClearTag,
-                    label = { Text("筛选标签：${currentTag.orEmpty()}，点击清除") }
+                ActiveTagFilterBanner(
+                    tag = currentTag.orEmpty(),
+                    resultCount = items.size,
+                    onClearTag = onClearTag
                 )
             }
         }
@@ -324,6 +334,68 @@ private fun RefreshStatusBanner(refreshing: Boolean) {
                     text = "正在刷新广告内容...",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveTagFilterBanner(
+    tag: String,
+    resultCount: Int,
+    onClearTag: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "tagFilterPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.025f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 720, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "tagFilterPulseScale"
+    )
+    val animatedCount by animateIntAsState(
+        targetValue = resultCount,
+        animationSpec = tween(durationMillis = 260),
+        label = "tagFilterResultCount"
+    )
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pulseScale
+                scaleY = pulseScale
+            }
+            .animateContentSize()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "正在查看 #$tag",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    text = "已筛选出 $animatedCount 条广告，点击右侧关闭",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            IconButton(onClick = onClearTag) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "清除标签筛选",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
