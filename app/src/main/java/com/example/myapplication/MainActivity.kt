@@ -21,6 +21,7 @@ import androidx.navigation.navArgument
 import com.example.myapplication.tracking.AdTracker
 import com.example.myapplication.ui.detail.DetailScreen
 import com.example.myapplication.ui.feed.FeedScreen
+import com.example.myapplication.ui.search.SearchScreen
 import com.example.myapplication.ui.stats.StatsScreen
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.viewmodel.FeedViewModel
@@ -64,7 +65,46 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToStats = {
                                 navController.navigate("stats")
+                            },
+                            onNavigateToSearch = {
+                                navController.navigate("search")
                             }
+                        )
+                    }
+                    composable(
+                        route = "search",
+                        enterTransition = {
+                            slideInHorizontally(
+                                initialOffsetX = { it },
+                                animationSpec = tween(260)
+                            ) + fadeIn(animationSpec = tween(180))
+                        },
+                        exitTransition = {
+                            slideOutHorizontally(
+                                targetOffsetX = { -it / 5 },
+                                animationSpec = tween(220)
+                            ) + fadeOut(animationSpec = tween(180))
+                        },
+                        popEnterTransition = {
+                            slideInHorizontally(
+                                initialOffsetX = { -it / 5 },
+                                animationSpec = tween(220)
+                            ) + fadeIn(animationSpec = tween(180))
+                        },
+                        popExitTransition = {
+                            slideOutHorizontally(
+                                targetOffsetX = { it },
+                                animationSpec = tween(240)
+                            ) + fadeOut(animationSpec = tween(160))
+                        }
+                    ) {
+                        SearchScreen(
+                            viewModel = feedViewModel,
+                            tracker = tracker,
+                            onNavigateToDetail = { itemId ->
+                                navController.navigate("detail/$itemId")
+                            },
+                            onBack = { navController.popBackStack() }
                         )
                     }
                     composable(

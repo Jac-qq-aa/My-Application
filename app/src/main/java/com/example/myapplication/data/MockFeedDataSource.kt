@@ -38,11 +38,11 @@ object MockFeedDataSource {
         )
 
         val tagPool = listOf(
-            listOf("AI精选", "高转化", "新品"),
+            listOf("AI精选", "高转化", "新品", "学生党"),
             listOf("附近优惠", "周末可用", "到店核销", "限时"),
-            listOf("智能家居", "品质生活"),
-            listOf("视频创意", "强种草", "年轻人偏好"),
-            listOf("电商爆款", "满减", "包邮", "复购高")
+            listOf("智能家居", "品质生活", "运动"),
+            listOf("视频创意", "强种草", "年轻人偏好", "学生党"),
+            listOf("电商爆款", "满减", "包邮", "复购高", "性价比")
         )
 
         val startIndex = (page - 1) * pageSize

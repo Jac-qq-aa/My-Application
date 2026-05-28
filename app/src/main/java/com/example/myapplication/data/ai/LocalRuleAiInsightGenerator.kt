@@ -23,7 +23,17 @@ class LocalRuleAiInsightGenerator : AiInsightGenerator {
             FeedItemType.VIDEO -> "视频创意"
         }
         val summary = "本地AI摘要：${item.title}突出${categoryTag}场景，适合通过${mediaTag}形式快速传达卖点。"
-        val tags = listOf(categoryTag, mediaTag, "高转化", "智能推荐")
+        val audienceTag = when (item.category) {
+            FeedCategory.FEATURED -> "学生党"
+            FeedCategory.ECOMMERCE -> "性价比"
+            FeedCategory.LOCAL -> "附近优惠"
+        }
+        val sceneTag = if (item.title.contains("装备") || item.description.contains("装备")) {
+            "运动"
+        } else {
+            "智能推荐"
+        }
+        val tags = listOf(categoryTag, mediaTag, audienceTag, sceneTag, "高转化", "智能推荐")
 
         return AiAdInsight(
             summary = summary.take(60),

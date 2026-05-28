@@ -33,6 +33,7 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -89,6 +90,7 @@ fun FeedScreen(
     tracker: AdTracker,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToStats: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.feedItems.collectAsState()
@@ -137,7 +139,14 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(title = { Text("广告信息流") })
+                TopAppBar(
+                    title = { Text("广告信息流") },
+                    actions = {
+                        IconButton(onClick = onNavigateToSearch) {
+                            Icon(imageVector = Icons.Default.Search, contentDescription = "搜索广告")
+                        }
+                    }
+                )
                 PrimaryScrollableTabRow(selectedTabIndex = FeedCategory.entries.indexOf(currentCategory)) {
                     FeedCategory.entries.forEach { category ->
                         Tab(
