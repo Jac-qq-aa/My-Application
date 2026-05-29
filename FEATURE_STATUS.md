@@ -40,7 +40,7 @@
 |------|------|------|----------|----------|-------------|
 | 3.1 | 下拉刷新 (pullRefresh) | ✅ 已实现 | `ui/feed/FeedScreen.kt:189-197` | 在列表顶部下拉 → 出现刷新指示器 → 数据重置 | 使用 Material3 `pullRefresh` modifier |
 | 3.2 | 上拉加载更多 (无限滚动) | ✅ 已实现 | `ui/feed/FeedScreen.kt:209-226` | 滚动到底部 → 自动加载下一页 → 列表追加数据 | 触发条件：最后可见 item 距底部 ≤ 4 个 |
-| 3.3 | 加载更多 Footer | ✅ 已实现 | `ui/feed/FeedScreen.kt:199-207` | 底部显示加载中 spinner 或"没有更多了" | 异常简单，无"点击重试"交互 |
+| 3.3 | 加载更多 Footer | ✅ 已实现 | `ui/feed/FeedScreen.kt` | 底部显示加载中、失败重试或"没有更多了" | 加载失败时保留当前列表并提供重试入口 |
 | 3.4 | 防重复加载 | ✅ 已实现 | `viewmodel/FeedViewModel.kt:145-146` | 快速滚动到底部不会触发多次加载 | `isLoadingMore` 和 `hasMore` 双重守卫 |
 | 3.5 | 分页上限控制 | ✅ 已实现 | `data/MockFeedDataSource.kt:18-20` | 加载到第 5 页后 `hasMore` 变为 false | Mock 数据共 5 页 × 20 条 = 100 条 |
 | 3.6 | 加载失败/错误状态 | ✅ 已实现 | `viewmodel/FeedViewModel.kt`, `ui/components/ScreenStateView.kt` | Mock 抛异常时展示错误提示和重试按钮 | `MockFeedDataSource.failCount` 可手动模拟失败 |
@@ -59,7 +59,7 @@
 | 4.4 | 页面切换动画 (slide + fade) | ✅ 已实现 | `MainActivity.kt:40-58` | 进入详情：右侧滑入 + 淡入；返回：滑出 + 淡出 | enterTransition / exitTransition 均已配置 |
 | 4.5 | 详情页"找不到"处理 | ✅ 已实现 | `ui/detail/DetailScreen.kt:61-76` | 若 itemId 无效（如数据被刷新），显示"未找到该广告" | 边界情况已有处理 |
 | 4.6 | 详情页返回按钮 | ✅ 已实现 | `ui/detail/DetailScreen.kt` | 点击 TopAppBar 返回箭头回到列表 | 使用 AutoMirrored ArrowBack 图标 |
-| 4.7 | 详情页分享按钮 | ✅ 已实现 | `ui/detail/DetailScreen.kt` | 详情页底部互动区提供分享按钮 | 当前仍为模拟分享/埋点，未调系统 Intent |
+| 4.7 | 详情页分享按钮 | ✅ 已实现 | `ui/detail/DetailScreen.kt`, `ui/share/ShareUtils.kt` | 详情页底部互动区提供分享按钮 | 调用系统 `ACTION_SEND` 分享面板并保留分享埋点 |
 | 4.8 | Deep Link 支持 | ❌ 未实现 | — | — | 无外部跳转支持 |
 
 ---
@@ -88,14 +88,14 @@
 
 | 序号 | 功能 | 状态 | 对应文件 | 演示方式 | 风险 / 备注 |
 |------|------|------|----------|----------|-------------|
-| 6.1 | AI 摘要展示 | ✅ 已实现 | `ui/components/AdCardFactory.kt:192-205` | 卡片上显示 2 行 AI 摘要（蓝色文字） | 数据来自 Mock 固定字符串，非 AI 生成 |
+| 6.1 | AI 摘要展示 | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `viewmodel/FeedViewModel.kt` | 卡片先显示 Mock 摘要，AI 结果返回后局部更新 | 首屏不阻塞，Qwen 不可用时走本地规则 |
 | 6.2 | AI 标签展示 | ✅ 已实现 | `ui/components/AdCardFactory.kt:208-229` | 卡片底部 FlowRow 显示彩色标签 chip | `maxLines=2`，超出溢出隐藏 |
 | 6.3 | 摘要限行 (maxLines=2) | ✅ 已实现 | `ui/components/AdCardFactory.kt:198` | 超长摘要截断显示"..." | 防止卡片高度抖动 |
 | 6.4 | 标签限行 (FlowRow maxLines) | ✅ 已实现 | `ui/components/AdCardFactory.kt:213` | 标签超过 2 行时隐藏溢出项 | 同上 |
 | 6.5 | 标签点击过滤 | ✅ 已实现 | `viewmodel/FeedViewModel.kt:42-50` | 见 2.3 | — |
-| 6.6 | 真实 AI 生成摘要/标签 | ❌ 未实现 | — | — | 计划接入 Qwen 或本地 Mock AI 服务 |
-| 6.7 | AI 摘要/标签缓存 | ❌ 未实现 | — | — | 计划以 adId 为 key 缓存 summary/tags/modelVersion |
-| 6.8 | 结构化 AI 输出约束 | ❌ 未实现 | — | — | 文档设计了 JSON 格式但未实现校验 |
+| 6.6 | 真实 AI 生成摘要/标签 | ✅ 已实现 | `data/ai/OllamaQwenAiInsightGenerator.kt`, `data/ai/HybridAiInsightGenerator.kt` | 启动 Ollama Qwen 后进入列表，摘要会替换为 Qwen 结果 | Qwen 不可用时自动降级到本地规则 |
+| 6.7 | AI 摘要/标签缓存 | ✅ 已实现 | `data/ai/AiInsightCache.kt`, `viewmodel/FeedViewModel.kt` | 同一广告再次生成时优先命中 SharedPreferences 缓存 | 缓存 key 包含 adId 与 modelVersion |
+| 6.8 | 结构化 AI 输出约束 | ✅ 已实现 | `data/ai/OllamaQwenAiInsightGenerator.kt` | Qwen 只允许返回 JSON；解析失败会降级 | 校验 summary 非空、tags 非空，并限制标签数量和长度 |
 
 ---
 
@@ -123,13 +123,16 @@
 
 | 序号 | 功能 | 状态 | 对应文件 | 演示方式 | 风险 / 备注 |
 |------|------|------|----------|----------|-------------|
-| 8.1 | VideoPlayerPool 接口 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt:5-12` | 查看接口定义：acquire/release/releaseAll | 接口已定义，等待实现 |
+| 8.1 | VideoPlayerPool 接口 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt:5-12` | 查看接口定义：acquire/release/releaseAll | 视频卡片已通过该接口租借播放器 |
 | 8.2 | SimpleVideoPlayerPool 实现 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt` | 基于 `Map<String, ExoPlayer>` 的简单实现 | 已通过视频卡片租借/释放播放器 |
 | 8.3 | Media3 ExoPlayer / UI 依赖 | ✅ 已引入 | `app/build.gradle.kts` | Gradle 已引入 `media3-exoplayer` 和 `media3-ui` | 依赖就绪 |
-| 8.4 | 真实视频播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `data/MockFeedDataSource.kt` | 滚动到视频卡片，点击播放按钮播放在线 MP4 | 使用开发测试视频源，当前为点击播放 |
+| 8.4 | 真实视频播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `data/MockFeedDataSource.kt` | 滚动到视频卡片，视频可见后自动静音播放，也可点击播放 | Pexels 在线 MP4，首次播放会先尝试缓存 |
 | 8.5 | 离屏暂停 / 释放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频卡片离开组合时 pause 并 release | 基于 Compose dispose 生命周期 |
-| 8.6 | 静音播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频默认音量 0，适合信息流场景 | 可在后续加静音按钮 |
-| 8.7 | 首帧预加载 | ❌ 未实现 | — | — | 计划特性 |
+| 8.6 | 静音播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频默认音量 0，适合信息流场景 | 播放后可手动打开声音 |
+| 8.7 | 视频首次播放本地缓存 | ✅ 已实现 | `data/video/VideoCacheManager.kt` | 第一次播放下载到 `cacheDir/video_cache`，再次播放命中本地文件 | 下载失败时降级为在线播放 |
+| 8.8 | 音量控制 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频播放后点击音量按钮，在静音和有声之间切换 | 默认静音，符合信息流体验 |
+| 8.9 | 全屏播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频播放后点击全屏按钮，进入全屏弹窗播放 | 复用同一个 ExoPlayer，不从头播放 |
+| 8.10 | 可见自动播放 / 首帧预加载 | ✅ 已实现 | `ui/feed/FeedScreen.kt`, `ui/components/AdCardFactory.kt` | 当前可见比例最高的视频自动静音播放，可见视频提前解析并 prepare | 当前按可见 item 预加载，尚未扩展到屏外预取 |
 
 ---
 
@@ -162,7 +165,7 @@
 | 11.2 | FeedItemType 枚举 | ✅ 已实现 | `data/FeedItem.kt:6-8` | 三种类型：IMAGE_BIG / IMAGE_SMALL / VIDEO | — |
 | 11.3 | FeedCategory 枚举 | ✅ 已实现 | `data/FeedItem.kt:10-14` | 三种频道：FEATURED / ECOMMERCE / LOCAL | 含中文 displayTitle |
 | 11.4 | Mock 数据源 | ✅ 已实现 | `data/MockFeedDataSource.kt` | 模拟网络延迟 1s，生成 20 条/页 | 最多 5 页 |
-| 11.5 | Repository 层 | ❌ 未实现 | — | — | 当前 ViewModel 直接调用 MockDataSource |
+| 11.5 | Repository 层 | ✅ 已实现 | `data/repository/FeedRepository.kt`, `viewmodel/FeedViewModel.kt` | ViewModel 通过 `FeedRepository` 加载数据、生成 AI 摘要、写入点赞收藏状态 | 当前为 Mock 数据源实现，后续可替换 Remote / Room 数据源 |
 | 11.6 | UseCase / Domain 层 | ❌ 未实现 | — | — | 后续演进方案 |
 | 11.7 | 真实网络请求 (Retrofit) | ❌ 未实现 | — | — | — |
 | 11.8 | Room 本地数据库 | ❌ 未实现 | — | — | — |
@@ -178,7 +181,7 @@
 | 12.1 | 版本目录 (libs.versions.toml) | ✅ 已实现 | `gradle/libs.versions.toml` | 集中管理 35+ 依赖版本 | — |
 | 12.2 | Material 3 主题 | ✅ 已实现 | `ui/theme/Theme.kt` | 支持亮色/暗色 + Android 12 动态取色 | — |
 | 12.3 | 暗色模式 | ✅ 已实现 | `ui/theme/Theme.kt:30-40` | 系统切换暗色模式 → App 自动跟随 | — |
-| 12.4 | ViewModel 单元测试 | ❌ 未实现 | — | — | 仅有一个 ExampleUnitTest |
+| 12.4 | 核心逻辑单元测试 | ✅ 已实现 | `app/src/test/java/.../CachingAiInsightGeneratorTest.kt`, `TrackingStatsTest.kt` | 执行 `gradlew :app:testDebugUnitTest` | 覆盖 AI 缓存与统计派生指标；ViewModel Android 依赖仍待进一步隔离 |
 | 12.5 | Compose UI 测试 | ❌ 未实现 | — | — | 依赖已声明但无实际测试 |
 | 12.6 | 插桩测试 | ❌ 未实现 | — | — | 仅有一个 ExampleInstrumentedTest |
 | 12.7 | ProGuard 混淆 | ❌ 未配置 | `app/proguard-rules.pro` | — | 文件为空，发布前需配置 |
@@ -209,15 +212,15 @@
 | 分页加载与刷新 | 8 | 0 | 100% |
 | 详情页与导航 | 7 | 1 | 88% |
 | 互动功能 | 13 | 0 | 100% |
-| AI 摘要与标签 | 5 | 3 | 63% |
+| AI 摘要与标签 | 8 | 0 | 100% |
 | 埋点与统计 | 11 | 2 | 85% |
-| 视频播放 | 3 | 4 | 43% |
+| 视频播放 | 10 | 0 | 100% |
 | 图片加载与缓存 | 4 | 0 | 100% |
 | 搜索功能 | 3 | 0 | 100% |
-| 数据层架构 | 4 | 6 | 40% |
-| 工程化与测试 | 3 | 7 | 30% |
+| 数据层架构 | 5 | 5 | 50% |
+| 工程化与测试 | 4 | 6 | 40% |
 | 文档 | 4 | 1 | 80% |
-| **合计** | **80** | **24** | **77%** |
+| **合计** | **86** | **18** | **83%** |
 
 ---
 
@@ -227,17 +230,17 @@
 
 | 优先级 | 功能 | 原因 |
 |--------|------|------|
-| P0 | 加载中骨架屏 / 空态 / 错误态 | 已完成，后续可补充更细的分页错误重试 |
+| P0 | 加载中骨架屏 / 空态 / 错误态 | 已完成，分页错误重试也已补充 |
 | P0 | 详情页返回按钮 | 已完成 |
 | P0 | Coil 图片加载 | 已完成，后续可优化图片占位图和加载策略 |
-| P1 | Media3 真实视频播放 | VIDEO 类型卡片无实际播放能力 |
+| P1 | 视频可见自动播放和首帧预加载 | 已完成基础可见自动播放和首帧 prepare，后续可做屏外预取 |
 
 ### 中优先级（功能完整度）
 
 | 优先级 | 功能 | 原因 |
 |--------|------|------|
 | P1 | 对话式搜索页面 | README 列为后续计划，是差异化亮点 |
-| P1 | 真实 AI 摘要/标签生成 | 当前全为 Mock 固定字符串 |
+| P1 | 真实 AI 摘要/标签生成 | 已接入 Qwen/Ollama、本地规则降级和缓存 |
 | P1 | 统计详情页/图表 | 已完成基础指标和图表，后续可扩展趋势分析 |
 | P2 | 评论功能 | 已完成基础本地评论，后续可接入持久化和评论详情 |
 | P2 | 分享真实调用 (Intent) | 已完成 |
@@ -246,10 +249,10 @@
 
 | 优先级 | 功能 | 原因 |
 |--------|------|------|
-| P2 | Repository + UseCase 层 | 当前简单分层够用，功能增多后再拆 |
+| P2 | UseCase / Domain 层 | Repository 已完成；Domain 层等业务规则继续增多后再拆 |
 | P2 | Room 本地缓存 | 无网络请求，暂无缓存需求 |
 | P2 | Hilt 依赖注入 | 单 ViewModel 场景够用 |
 | P3 | Paging 3 | 手写分页可控，接入收益不大 |
-| P3 | Compose UI 测试 + ViewModel 单元测试 | 训练营阶段可后补 |
+| P3 | Compose UI 测试 + ViewModel 单元测试 | 已补核心 JVM 测试；Compose UI 和 ViewModel 隔离测试后续补 |
 | P3 | ProGuard 混淆 | 开发阶段不需要 |
 | P3 | 演示视频录制 | 答辩前完成即可 |

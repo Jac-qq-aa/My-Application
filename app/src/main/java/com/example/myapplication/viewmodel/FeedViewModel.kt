@@ -6,9 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.FeedCategory
 import com.example.myapplication.data.FeedComment
 import com.example.myapplication.data.FeedItem
-import com.example.myapplication.data.MockFeedDataSource
-import com.example.myapplication.data.ai.HybridAiInsightGenerator
-import com.example.myapplication.data.local.FeedInteractionStore
+import com.example.myapplication.data.repository.DefaultFeedRepository
+import com.example.myapplication.data.repository.FeedRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,14 +28,14 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         const val PageSize = 20
     }
 
-    private val interactionStore = FeedInteractionStore(application)
-    private val aiInsightGenerator = HybridAiInsightGenerator()
+    private val feedRepository: FeedRepository = DefaultFeedRepository(application)
     private val allItems = MutableStateFlow<List<FeedItem>>(emptyList())
     private val selectedCategory = MutableStateFlow(FeedCategory.FEATURED)
     private val selectedTag = MutableStateFlow<String?>(null)
     private val isRefreshing = MutableStateFlow(false)
     private val isLoadingMore = MutableStateFlow(false)
     private val hasMoreItems = MutableStateFlow(true)
+    private val loadMoreState = MutableStateFlow<LoadMoreState>(LoadMoreState.Idle)
     private val currentPage = MutableStateFlow(1)
     private val screenState = MutableStateFlow<FeedScreenState>(FeedScreenState.Loading)
     private val commentsByItemId = MutableStateFlow<Map<String, List<FeedComment>>>(emptyMap())
@@ -53,6 +52,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     val refreshing: StateFlow<Boolean> = isRefreshing.asStateFlow()
     val loadingMore: StateFlow<Boolean> = isLoadingMore.asStateFlow()
     val hasMore: StateFlow<Boolean> = hasMoreItems.asStateFlow()
+    val currentLoadMoreState: StateFlow<LoadMoreState> = loadMoreState.asStateFlow()
     val currentScreenState: StateFlow<FeedScreenState> = screenState.asStateFlow()
     val comments: StateFlow<Map<String, List<FeedComment>>> = commentsByItemId.asStateFlow()
 
@@ -92,12 +92,11 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSeed += 1
                 currentPage.value = 1
                 hasMoreItems.value = true
-                val loadedItems = restorePersistedInteractions(
-                    MockFeedDataSource.loadFeedItems(
-                        page = 1,
-                        pageSize = PageSize,
-                        refreshSeed = refreshSeed
-                    )
+                loadMoreState.value = LoadMoreState.Idle
+                val loadedItems = feedRepository.loadFeedItems(
+                    page = 1,
+                    pageSize = PageSize,
+                    refreshSeed = refreshSeed
                 )
                 allItems.value = loadedItems
                 hasLoadedOnce = true
@@ -133,23 +132,37 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             isLoadingMore.value = true
+            loadMoreState.value = LoadMoreState.Loading
             try {
                 val nextPage = currentPage.value + 1
-                val nextItems = restorePersistedInteractions(
-                    MockFeedDataSource.loadFeedItems(
-                        page = nextPage,
-                        pageSize = PageSize,
-                        refreshSeed = refreshSeed,
-                        networkDelayMillis = 700
-                    )
+                val nextItems = feedRepository.loadFeedItems(
+                    page = nextPage,
+                    pageSize = PageSize,
+                    refreshSeed = refreshSeed,
+                    networkDelayMillis = 700
                 )
                 allItems.value = allItems.value + nextItems
                 generateAiInsights(nextItems, cancelRunning = false)
                 currentPage.value = nextPage
                 hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
+                loadMoreState.value = if (hasMoreItems.value) {
+                    LoadMoreState.Idle
+                } else {
+                    LoadMoreState.EndReached
+                }
+            } catch (exception: Exception) {
+                loadMoreState.value = LoadMoreState.Error(
+                    message = exception.message ?: "下一批广告加载失败"
+                )
             } finally {
                 isLoadingMore.value = false
             }
+        }
+    }
+
+    fun retryLoadMore() {
+        if (loadMoreState.value is LoadMoreState.Error) {
+            loadMore()
         }
     }
 
@@ -175,33 +188,6 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 将 Java 持久化层里的点赞/收藏状态恢复到 Mock 数据上。
-     */
-    private fun restorePersistedInteractions(items: List<FeedItem>): List<FeedItem> {
-        return items.map { item ->
-            val restoredLiked = if (interactionStore.hasLikeOverride(item.id)) {
-                interactionStore.isLiked(item.id)
-            } else {
-                item.isLiked
-            }
-            val restoredCollected = if (interactionStore.hasCollectOverride(item.id)) {
-                interactionStore.isCollected(item.id)
-            } else {
-                item.isCollected
-            }
-            item.copy(
-                isLiked = restoredLiked,
-                isCollected = restoredCollected,
-                likesCount = when {
-                    restoredLiked && !item.isLiked -> item.likesCount + 1
-                    !restoredLiked && item.isLiked -> (item.likesCount - 1).coerceAtLeast(0)
-                    else -> item.likesCount
-                }
-            )
-        }
-    }
-
-    /**
      * 异步生成 AI 摘要和标签。
      *
      * 这里不阻塞首屏：列表先展示 Mock 内容，AI 结果回来后按 id 局部更新对应 item。
@@ -213,7 +199,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         aiInsightJob = viewModelScope.launch {
             // 本地小模型推理速度有限。串行生成可以避免一次性请求把 Ollama 打满。
             items.forEach { item ->
-                val insight = aiInsightGenerator.generate(item)
+                val insight = feedRepository.generateAiInsight(item)
                 allItems.value = allItems.value.map { current ->
                     if (current.id == item.id) {
                         current.copy(
@@ -237,12 +223,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleLike(id: String) {
         allItems.value = allItems.value.map { item ->
             if (item.id == id) {
-                val nextLiked = !item.isLiked
-                interactionStore.setLiked(id, nextLiked)
-                item.copy(
-                    isLiked = nextLiked,
-                    likesCount = if (nextLiked) item.likesCount + 1 else (item.likesCount - 1).coerceAtLeast(0)
-                )
+                feedRepository.toggleLike(item)
             } else {
                 item
             }
@@ -255,9 +236,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleCollect(id: String) {
         allItems.value = allItems.value.map { item ->
             if (item.id == id) {
-                val nextCollected = !item.isCollected
-                interactionStore.setCollected(id, nextCollected)
-                item.copy(isCollected = nextCollected)
+                feedRepository.toggleCollect(item)
             } else {
                 item
             }

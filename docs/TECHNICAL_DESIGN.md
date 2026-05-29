@@ -11,7 +11,7 @@
 - 资源复用与稳定性：列表 cell 复用、播放器复用、缓存池设计。
 - 埋点统计：模拟曝光、点击、互动事件，并能可视化展示统计结果。
 
-当前项目已经完成核心骨架：Compose 单列流、三类卡片、Tab 切换、下拉刷新、点赞收藏、AI 摘要/标签展示、曝光埋点骨架、Media3 播放器池接口预留。
+当前项目已经完成核心骨架：Compose 单列流、三类卡片、Tab 切换、下拉刷新、点赞收藏、AI 摘要/标签展示、曝光埋点骨架、Media3 视频播放与本地缓存。
 
 ## 2. 参考项目分析
 
@@ -407,8 +407,19 @@ Compose 中没有传统 RecyclerView 的 ViewHolder，但 LazyColumn 会复用 i
 
 当前状态：
 
-- 已预留 `VideoPlayerPool` 和 `SimpleVideoPlayerPool`。
-- 视频卡片使用 Media3 `PlayerView` 播放在线 MP4 测试源，并通过播放器池租借 / 释放 ExoPlayer。
+- 已实现 `VideoPlayerPool` 和 `SimpleVideoPlayerPool`。
+- 视频卡片使用 Media3 `PlayerView` 播放 Pexels 在线 MP4，并通过播放器池租借 / 释放 ExoPlayer。
+- 视频源首次播放前由 `VideoCacheManager` 下载到 `cacheDir/video_cache`，后续播放直接命中本地文件。
+- 视频默认静音，播放后可在卡片内切换静音 / 有声。
+- 全屏播放使用 Compose `Dialog` 承载 `PlayerView`，复用当前 ExoPlayer，避免全屏时重新缓冲或从头播放。
+
+视频缓存取舍：
+
+| 方案 | 优点 | 缺点 | 当前选择 |
+| --- | --- | --- | --- |
+| 直接在线播放 | 实现简单，不占本地空间 | 弱网下每次都慢，滚动回来可能重新缓冲 | 不作为主路径 |
+| 首次播放写入 cacheDir | 不需要存储权限，后续播放稳定 | 系统可能在空间紧张时清理缓存 | ✅ 当前方案 |
+| 写入 filesDir / Room 索引 | 持久性更强，可做离线管理 | 需要缓存淘汰和容量治理 | 后续演进 |
 
 ### 7.3 图片/AI 缓存
 
@@ -625,7 +636,10 @@ ollama serve
 - 对话式搜索页面。
 - 本地关键词匹配搜索。
 - Qwen 意图解析搜索。
-- Media3 ExoPlayer 复用池接口和基础点击播放。
+- Media3 ExoPlayer 复用池和基础点击播放。
+- Pexels 在线 MP4 视频源。
+- 视频首次播放本地缓存，后续播放直接读本地文件。
+- 视频静音 / 有声切换和全屏播放。
 - README 项目说明和 AI 声明。
 - 开发文档和参考项目文档。
 
@@ -667,7 +681,7 @@ ollama serve
 目标：提高技术方案设计和答辩表现。
 
 - 用 Coil 加载效果做首屏体验和缓存命中验证。
-- 视频卡片继续增强为可见自动播放、离屏暂停和首帧预加载。
+- 视频卡片继续增强为可见自动播放、静音按钮和首帧预加载。
 - 使用 Compose Stability Analyzer 或 Layout Inspector 验证重组情况。
 - 完善 README。
 - 录制 3-8 分钟演示视频。

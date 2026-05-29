@@ -75,6 +75,7 @@ import com.example.myapplication.ui.components.FeedSkeletonList
 import com.example.myapplication.ui.share.shareFeedItem
 import com.example.myapplication.viewmodel.FeedScreenState
 import com.example.myapplication.viewmodel.FeedViewModel
+import com.example.myapplication.viewmodel.LoadMoreState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -99,6 +100,7 @@ fun FeedScreen(
     val refreshing by viewModel.refreshing.collectAsState()
     val loadingMore by viewModel.loadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    val loadMoreState by viewModel.currentLoadMoreState.collectAsState()
     val screenState by viewModel.currentScreenState.collectAsState()
     val stats by tracker.stats.collectAsState()
     val context = LocalContext.current
@@ -135,6 +137,9 @@ fun FeedScreen(
             listState.animateScrollToItem(0)
         }
     }
+
+    val autoPlayVideoId by rememberAutoPlayVideoId(listState = listState, items = items)
+    val preloadVideoIds by rememberPreloadVideoIds(listState = listState, items = items)
 
     Scaffold(
         topBar = {
@@ -184,11 +189,15 @@ fun FeedScreen(
                     refreshing = refreshing,
                     loadingMore = loadingMore,
                     hasMore = hasMore,
+                    loadMoreState = loadMoreState,
+                    autoPlayVideoId = autoPlayVideoId,
+                    preloadVideoIds = preloadVideoIds,
                     onStatsClick = {
                         tracker.trackClick(ClickEvent("stats_panel", "stats"))
                         onNavigateToStats()
                     },
                     onClearTag = viewModel::clearTag,
+                    onRetryLoadMore = viewModel::retryLoadMore,
                     onLikeClick = { id ->
                         viewModel.toggleLike(id)
                         tracker.trackClick(ClickEvent(id, "like"))
@@ -236,8 +245,12 @@ private fun FeedContentList(
     refreshing: Boolean,
     loadingMore: Boolean,
     hasMore: Boolean,
+    loadMoreState: LoadMoreState,
+    autoPlayVideoId: String?,
+    preloadVideoIds: Set<String>,
     onStatsClick: () -> Unit,
     onClearTag: () -> Unit,
+    onRetryLoadMore: () -> Unit,
     onLikeClick: (String) -> Unit,
     onCollectClick: (String) -> Unit,
     onShareClick: (FeedItem) -> Unit,
@@ -289,15 +302,19 @@ private fun FeedContentList(
                 onCommentClick = onCommentClick,
                 onTagClick = { tag -> onTagClick(item.id, tag) },
                 onCardClick = onCardClick,
+                shouldAutoPlayVideo = item.id == autoPlayVideoId,
+                shouldPreloadVideo = preloadVideoIds.contains(item.id),
                 modifier = Modifier.fillMaxWidth()
             )
         }
 
         item(key = "load_more", contentType = "load_more") {
             LoadMoreFooter(
+                loadMoreState = loadMoreState,
                 loadingMore = loadingMore,
                 hasMore = hasMore,
-                itemCount = items.size
+                itemCount = items.size,
+                onRetry = onRetryLoadMore
             )
         }
     }
@@ -459,9 +476,11 @@ private fun StatText(label: String, value: Int) {
 
 @Composable
 private fun LoadMoreFooter(
+    loadMoreState: LoadMoreState,
     loadingMore: Boolean,
     hasMore: Boolean,
-    itemCount: Int
+    itemCount: Int,
+    onRetry: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -471,16 +490,76 @@ private fun LoadMoreFooter(
         verticalAlignment = Alignment.CenterVertically
     ) {
         when {
-            loadingMore -> {
+            loadMoreState is LoadMoreState.Error -> {
+                Text(
+                    text = loadMoreState.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(end = 10.dp)
+                )
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.clickable(onClick = onRetry)
+                ) {
+                    Text(
+                        text = "重试",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                    )
+                }
+            }
+            loadingMore || loadMoreState is LoadMoreState.Loading -> {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "正在加载下一批广告...", style = MaterialTheme.typography.bodyMedium)
             }
             itemCount == 0 -> Text(text = "当前筛选下暂无广告", style = MaterialTheme.typography.bodySmall)
-            !hasMore -> Text(text = "没有更多广告了，试试下拉刷新", style = MaterialTheme.typography.bodySmall)
+            !hasMore || loadMoreState is LoadMoreState.EndReached -> Text(text = "没有更多广告了，试试下拉刷新", style = MaterialTheme.typography.bodySmall)
             else -> Text(text = "继续上滑加载更多", style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+@Composable
+private fun rememberAutoPlayVideoId(
+    listState: LazyListState,
+    items: List<FeedItem>
+): androidx.compose.runtime.State<String?> {
+    val videoIds = remember(items) {
+        items.filter { it.type == com.example.myapplication.data.FeedItemType.VIDEO }.map { it.id }.toSet()
+    }
+    return snapshotFlow {
+        listState.layoutInfo.visibleItemsInfo
+            .mapNotNull { itemInfo ->
+                val id = itemInfo.key as? String ?: return@mapNotNull null
+                if (!videoIds.contains(id)) return@mapNotNull null
+                id to itemInfo.visibleRatio(
+                    listState.layoutInfo.viewportStartOffset,
+                    listState.layoutInfo.viewportEndOffset
+                )
+            }
+            .filter { (_, ratio) -> ratio >= 0.6f }
+            .maxByOrNull { (_, ratio) -> ratio }
+            ?.first
+    }.collectAsState(initial = null)
+}
+
+@Composable
+private fun rememberPreloadVideoIds(
+    listState: LazyListState,
+    items: List<FeedItem>
+): androidx.compose.runtime.State<Set<String>> {
+    val videoIds = remember(items) {
+        items.filter { it.type == com.example.myapplication.data.FeedItemType.VIDEO }.map { it.id }.toSet()
+    }
+    return snapshotFlow {
+        listState.layoutInfo.visibleItemsInfo
+            .mapNotNull { it.key as? String }
+            .filter { videoIds.contains(it) }
+            .toSet()
+    }.collectAsState(initial = emptySet())
 }
 
 /**

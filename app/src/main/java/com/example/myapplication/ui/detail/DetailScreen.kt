@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -64,6 +63,7 @@ import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
 import com.example.myapplication.tracking.AdTracker
 import com.example.myapplication.tracking.ClickEvent
+import com.example.myapplication.ui.components.AdVideoMedia
 import com.example.myapplication.ui.share.shareFeedItem
 import com.example.myapplication.viewmodel.FeedViewModel
 
@@ -153,23 +153,7 @@ private fun DetailContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box {
-            DetailMedia(item = item)
-            if (item.type == FeedItemType.VIDEO) {
-                Surface(
-                    shape = RoundedCornerShape(32.dp),
-                    color = Color.Black.copy(alpha = 0.48f),
-                    modifier = Modifier.align(Alignment.Center)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "播放",
-                        tint = Color.White,
-                        modifier = Modifier.padding(18.dp)
-                    )
-                }
-            }
-        }
+        DetailMedia(item = item)
 
         Text(
             text = item.title,
@@ -353,6 +337,16 @@ private fun defaultComments(item: FeedItem): List<FeedComment> {
 
 @Composable
 private fun DetailMedia(item: FeedItem) {
+    if (item.type == FeedItemType.VIDEO) {
+        AdVideoMedia(
+            item = item,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+        )
+        return
+    }
+
     val context = LocalContext.current
     var imageLoaded by remember(item.id) { mutableStateOf(false) }
 

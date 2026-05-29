@@ -1,5 +1,7 @@
 package com.example.myapplication.ui.components
 
+import android.view.LayoutInflater
+import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,10 +34,15 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -72,6 +83,8 @@ import coil3.request.crossfade
 import com.example.myapplication.R
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.FeedItemType
+import com.example.myapplication.data.video.VideoCacheManager
+import kotlinx.coroutines.launch
 
 /**
  * 广告卡片工厂。
@@ -88,12 +101,25 @@ fun AdCardFactory(
     onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
+    shouldAutoPlayVideo: Boolean = false,
+    shouldPreloadVideo: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     when (item.type) {
         FeedItemType.IMAGE_BIG -> BigImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
         FeedItemType.IMAGE_SMALL -> SmallImageAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
-        FeedItemType.VIDEO -> VideoAdCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier)
+        FeedItemType.VIDEO -> VideoAdCard(
+            item = item,
+            onLikeClick = onLikeClick,
+            onCollectClick = onCollectClick,
+            onShareClick = onShareClick,
+            onCommentClick = onCommentClick,
+            onTagClick = onTagClick,
+            onCardClick = onCardClick,
+            shouldAutoPlayVideo = shouldAutoPlayVideo,
+            shouldPreloadVideo = shouldPreloadVideo,
+            modifier = modifier
+        )
     }
 }
 
@@ -148,57 +174,108 @@ private fun VideoAdCard(
     onCommentClick: (String) -> Unit,
     onTagClick: (String) -> Unit,
     onCardClick: (String) -> Unit,
+    shouldAutoPlayVideo: Boolean,
+    shouldPreloadVideo: Boolean,
     modifier: Modifier
 ) {
     BaseCard(item, onLikeClick, onCollectClick, onShareClick, onCommentClick, onTagClick, onCardClick, modifier) {
-        VideoMedia(item = item)
+        AdVideoMedia(
+            item = item,
+            shouldAutoPlay = shouldAutoPlayVideo,
+            shouldPreload = shouldPreloadVideo
+        )
     }
 }
 
 @Composable
 @OptIn(UnstableApi::class)
-private fun VideoMedia(item: FeedItem) {
+fun AdVideoMedia(
+    item: FeedItem,
+    shouldAutoPlay: Boolean = false,
+    shouldPreload: Boolean = false,
+    modifier: Modifier = Modifier
+) {
     val videoUrl = item.videoUrl
     var isPlaying by remember(item.id) { mutableStateOf(false) }
+    var isPreparing by remember(item.id, videoUrl) { mutableStateOf(false) }
+    var playableUri by remember(item.id, videoUrl) { mutableStateOf<Uri?>(null) }
+    var isPrepared by remember(item.id, videoUrl) { mutableStateOf(false) }
+    var isMuted by remember(item.id) { mutableStateOf(true) }
+    var isFullscreen by remember(item.id) { mutableStateOf(false) }
+    var manualPlayRequested by remember(item.id) { mutableStateOf(false) }
+    val shouldPlay = shouldAutoPlay || manualPlayRequested
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val player = remember(item.id, videoUrl) {
         if (videoUrl == null) {
             null
         } else {
             FeedVideoPlayerPool.acquire(context, item.id).apply {
                 repeatMode = Player.REPEAT_MODE_ONE
-                volume = 0f
-                setMediaItem(MediaItem.fromUri(videoUrl))
-                prepare()
+                volume = if (isMuted) 0f else 1f
             }
         }
+    }
+
+    LaunchedEffect(player, isMuted) {
+        player?.volume = if (isMuted) 0f else 1f
+    }
+
+    LaunchedEffect(player, playableUri) {
+        val uri = playableUri ?: return@LaunchedEffect
+        val currentPlayer = player ?: return@LaunchedEffect
+        currentPlayer.setMediaItem(MediaItem.fromUri(uri))
+        currentPlayer.prepare()
+        currentPlayer.playWhenReady = shouldPlay
+        isPreparing = false
+        isPrepared = true
+        isPlaying = shouldPlay
+    }
+
+    LaunchedEffect(player, shouldPlay, isPrepared) {
+        val currentPlayer = player ?: return@LaunchedEffect
+        if (!isPrepared) return@LaunchedEffect
+        currentPlayer.playWhenReady = shouldPlay
+        isPlaying = shouldPlay
+    }
+
+    LaunchedEffect(videoUrl, shouldAutoPlay, shouldPreload, playableUri, isPreparing) {
+        if (videoUrl == null || playableUri != null || isPreparing || (!shouldAutoPlay && !shouldPreload)) {
+            return@LaunchedEffect
+        }
+        isPreparing = true
+        playableUri = VideoCacheManager.getPlayableVideoUri(context, videoUrl)
     }
 
     DisposableEffect(item.id, player) {
         onDispose {
             player?.pause()
+            isFullscreen = false
             FeedVideoPlayerPool.release(item.id)
         }
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
     ) {
-        if (player != null && isPlaying) {
+        if (player != null && isPrepared && playableUri != null && !isFullscreen) {
             AndroidView(
                 factory = { viewContext ->
-                    PlayerView(viewContext).apply {
-                        useController = true
-                        this.player = player
-                    }
+                    LayoutInflater.from(viewContext)
+                        .inflate(R.layout.view_texture_player, null, false) as PlayerView
                 },
                 update = { playerView ->
                     playerView.player = player
-                    player.playWhenReady = true
+                    player.playWhenReady = shouldPlay
                 },
                 modifier = Modifier.matchParentSize()
+            )
+            VideoInlineControls(
+                isMuted = isMuted,
+                onMuteToggle = { isMuted = !isMuted },
+                onFullscreenClick = { isFullscreen = true }
             )
         } else {
             AdCoverImage(
@@ -207,12 +284,153 @@ private fun VideoMedia(item: FeedItem) {
             )
             VideoPlayOverlay(
                 enabled = videoUrl != null,
+                loading = isPreparing,
                 onClick = {
-                    if (videoUrl != null) {
-                        isPlaying = true
+                    if (videoUrl == null || isPreparing) {
+                        return@VideoPlayOverlay
+                    }
+                    if (playableUri != null) {
+                        manualPlayRequested = true
+                        return@VideoPlayOverlay
+                    }
+
+                    scope.launch {
+                        manualPlayRequested = true
+                        isPreparing = true
+                        // 第一次播放先下载到本地缓存；已缓存时这个函数会直接返回本地文件 Uri。
+                        playableUri = VideoCacheManager.getPlayableVideoUri(context, videoUrl)
                     }
                 }
             )
+        }
+    }
+
+    if (player != null && isPlaying && playableUri != null && isFullscreen) {
+        FullscreenVideoDialog(
+            player = player,
+            isMuted = isMuted,
+            onMuteToggle = { isMuted = !isMuted },
+            onDismiss = { isFullscreen = false }
+        )
+    }
+}
+
+@Composable
+@OptIn(UnstableApi::class)
+private fun FullscreenVideoDialog(
+    player: Player,
+    isMuted: Boolean,
+    onMuteToggle: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            AndroidView(
+                factory = { viewContext ->
+                    LayoutInflater.from(viewContext)
+                        .inflate(R.layout.view_texture_player, null, false) as PlayerView
+                },
+                update = { playerView ->
+                    playerView.player = player
+                    player.playWhenReady = true
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center)
+                    .aspectRatio(16f / 9f)
+            )
+
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.Black.copy(alpha = 0.52f),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "退出全屏",
+                        tint = Color.White
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.Black.copy(alpha = 0.52f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            ) {
+                IconButton(onClick = onMuteToggle) {
+                    Icon(
+                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = if (isMuted) "打开声音" else "静音",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.VideoInlineControls(
+    isMuted: Boolean,
+    onMuteToggle: () -> Unit,
+    onFullscreenClick: () -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(10.dp)
+    ) {
+        VideoControlButton(onClick = onMuteToggle) {
+            Icon(
+                imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                contentDescription = if (isMuted) "打开声音" else "静音",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        VideoControlButton(onClick = onFullscreenClick) {
+            Icon(
+                imageVector = Icons.Default.Fullscreen,
+                contentDescription = "全屏播放",
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun VideoControlButton(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = Color.Black.copy(alpha = 0.52f)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .clickable(onClick = onClick)
+        ) {
+            content()
         }
     }
 }
@@ -220,6 +438,7 @@ private fun VideoMedia(item: FeedItem) {
 @Composable
 private fun BoxScope.VideoPlayOverlay(
     enabled: Boolean,
+    loading: Boolean,
     onClick: () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "videoPulse")
@@ -244,14 +463,24 @@ private fun BoxScope.VideoPlayOverlay(
                 scaleY = pulseScale
             }
     ) {
-        Icon(
-            imageVector = Icons.Default.PlayArrow,
-            contentDescription = if (enabled) "播放" else "暂无视频",
-            tint = Color.White,
-            modifier = Modifier
-                .padding(14.dp)
-                .size(32.dp)
-        )
+        if (loading) {
+            CircularProgressIndicator(
+                color = Color.White,
+                strokeWidth = 3.dp,
+                modifier = Modifier
+                    .padding(14.dp)
+                    .size(32.dp)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = if (enabled) "播放" else "暂无视频",
+                tint = Color.White,
+                modifier = Modifier
+                    .padding(14.dp)
+                    .size(32.dp)
+            )
+        }
     }
 }
 

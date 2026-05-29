@@ -45,9 +45,17 @@ object MockFeedDataSource {
             listOf("电商爆款", "满减", "包邮", "复购高", "性价比")
         )
         val videoUrls = listOf(
-            "https://placeholdervideo.dev/640x360",
-            "https://placeholdervideo.dev/1280x720",
-            "https://placeholdervideo.dev/480x270"
+            // Pexels 免费商用视频直连 MP4。素材池按“第几个视频卡片”分配，避免所有 VIDEO 卡片播放同一个素材。
+            "https://videos.pexels.com/video-files/855564/855564-hd_1920_1080_24fps.mp4",
+            "https://videos.pexels.com/video-files/2795171/2795171-hd_1920_1080_25fps.mp4",
+            "https://videos.pexels.com/video-files/3129957/3129957-hd_1920_1080_25fps.mp4",
+            "https://videos.pexels.com/video-files/3571264/3571264-hd_1920_1080_30fps.mp4",
+            "https://videos.pexels.com/video-files/3209828/3209828-hd_1920_1080_25fps.mp4",
+            "https://videos.pexels.com/video-files/3195394/3195394-hd_1920_1080_25fps.mp4",
+            "https://videos.pexels.com/video-files/854671/854671-hd_1920_1080_25fps.mp4",
+            "https://videos.pexels.com/video-files/853919/853919-hd_1920_1080_25fps.mp4",
+            "https://videos.pexels.com/video-files/856787/856787-hd_1920_1080_30fps.mp4",
+            "https://videos.pexels.com/video-files/856973/856973-hd_1920_1080_25fps.mp4"
         )
 
         val startIndex = (page - 1) * pageSize
@@ -64,6 +72,7 @@ object MockFeedDataSource {
                 1 -> FeedCategory.ECOMMERCE
                 else -> FeedCategory.LOCAL
             }
+            val videoIndex = index / 3
             FeedItem(
                 id = "refresh_${refreshSeed}_ad_${index + 1}",
                 title = when (category) {
@@ -75,7 +84,7 @@ object MockFeedDataSource {
                 type = type,
                 category = category,
                 coverUrl = "${covers[index % covers.size]}?auto=format&fit=crop&w=1200&q=80",
-                videoUrl = if (type == FeedItemType.VIDEO) videoUrls[index % videoUrls.size] else null,
+                videoUrl = if (type == FeedItemType.VIDEO) videoUrls[videoIndex % videoUrls.size] else null,
                 likesCount = 128 + refreshSeed * 11 + index * 17,
                 commentsCount = 12 + refreshSeed + index * 3,
                 isLiked = index % 5 == 0,

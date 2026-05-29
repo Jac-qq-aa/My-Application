@@ -2,7 +2,7 @@
 
 训练营课题：实现一个基于 Jetpack Compose 的单列广告信息流 App。
 
-当前项目聚焦广告流核心体验：单列浏览、多样式卡片、频道切换、详情页互动同步、刷新加载、AI 摘要标签展示、对话式搜索、曝光点击统计、视频播放器复用接口预留。
+当前项目聚焦广告流核心体验：单列浏览、多样式卡片、频道切换、详情页互动同步、刷新加载、AI 摘要标签展示、对话式搜索、曝光点击统计、Media3 视频播放与本地缓存。
 
 ## 技术栈
 
@@ -40,8 +40,12 @@
 - 分享按钮轻旋转反馈
 - 视频播放按钮呼吸动效
 - Media3 ExoPlayer 视频卡片点击播放
+- Pexels 在线 MP4 视频源
+- 视频首次播放下载到 App 本地缓存，后续直接播放本地文件
+- 视频支持静音 / 开声音切换
+- 视频支持全屏播放弹窗
 - 视频卡片离屏暂停并释放播放器
-- 使用开发测试 MP4 在线源，模拟真实广告视频加载
+- 使用 Pexels 在线 MP4，模拟真实广告视频加载
 - 标签筛选条展开 / 收起动画
 - 统计数字变化动画
 - Coil 网络图片加载
@@ -70,8 +74,9 @@
 
 ```text
 app/src/main/java/com/example/myapplication/
-  data/          数据模型与 Mock 数据源
+  data/          数据模型、Mock 数据源与 Repository
     local/       Java SharedPreferences 持久化存储
+    repository/  FeedRepository 数据入口
   viewmodel/     FeedViewModel，负责状态管理
   ui/feed/       信息流页面
   ui/detail/     广告详情页
@@ -115,6 +120,7 @@ File > Sync Project with Gradle Files
 - 曝光、点击等事件统一走 `AdTracker`。
 - 图片统一使用 Coil 加载，并显式开启内存缓存、磁盘缓存和网络缓存。
 - 点赞 / 收藏持久化由 Java 类 `FeedInteractionStore` 负责，ViewModel 不直接操作 SharedPreferences。
+- 视频素材使用 Pexels 直连 MP4，首次播放由 `VideoCacheManager` 写入 `cacheDir/video_cache`，下载失败时降级为在线播放。
 
 ## 本地 Qwen 摘要和标签
 
@@ -182,6 +188,6 @@ AI 辅助内容包括：
 
 ## 后续计划
 
-- 接入 Media3 真实视频播放
 - 对搜索结果排序和召回策略继续优化
+- 视业务复杂度引入 Room / Paging 3 / Hilt
 - 增加 Compose UI 测试和 ViewModel 单元测试

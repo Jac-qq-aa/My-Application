@@ -16,7 +16,8 @@
 - 下拉刷新
 - AI 摘要与标签展示
 - 有效曝光埋点骨架
-- Media3 ExoPlayer 复用池接口预留
+- Media3 ExoPlayer 视频播放
+- 视频首次播放本地缓存
 
 ## 2. 目录结构
 
@@ -39,6 +40,8 @@ data/
     OllamaQwenAiInsightGenerator.kt
   local/
     FeedInteractionStore.java
+  video/
+    VideoCacheManager.kt
 
 viewmodel/
   FeedViewModel.kt
@@ -287,28 +290,37 @@ delay(1_000)
 
 它不会阻塞主线程，也不会卡住 UI。
 
-## 8. 视频播放预留方案
+## 8. 视频播放与缓存方案
 
-当前 VIDEO 卡片先展示封面和播放图标，不直接播放。
+当前 VIDEO 卡片先展示封面和播放图标，用户点击后播放真实 MP4。
 
-原因：
+设计原因：
 
 - 单列视频流不能给每个视频都创建播放器
 - ExoPlayer 数量过多会导致内存和解码资源压力
 - 应该维护播放器复用池
+- 在线视频首次播放可能较慢，适合下载到 App 私有缓存后复用
 
-已预留接口：
+实现位置：
 
 ```text
 ui/components/VideoPlayerPool.kt
+data/video/VideoCacheManager.kt
 ```
+
+当前策略：
+
+- 视频源使用 Pexels 免费商用直连 MP4。
+- 点击播放时先检查 `cacheDir/video_cache`。
+- 如果本地已缓存，直接用本地文件 Uri 交给 Media3。
+- 如果未缓存，协程切到 IO 线程下载，下载完成后播放本地文件。
+- 如果下载失败，降级返回远程 Uri，让播放器尝试在线播放。
+- 播放后提供静音 / 有声切换。
+- 全屏播放使用 Compose Dialog，复用同一个 ExoPlayer，避免全屏切换导致播放进度丢失。
 
 后续可以扩展：
 
 - 当前可见视频自动播放
-- 离屏视频暂停
-- 播放器租借 / 归还
-- 静音自动播放
 - 首帧预加载
 
 ## 9. 当前页面入口
@@ -329,7 +341,7 @@ FeedScreen(viewModel = feedViewModel)
 - Repository 层
 - Room 本地缓存
 - Paging 3 分页加载
-- Media3 真正视频播放
+- 视频可见自动播放
 - 曝光埋点批量上报
 - ViewModel 单元测试
 - Compose UI 自动化测试
