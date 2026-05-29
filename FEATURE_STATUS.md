@@ -126,7 +126,7 @@
 | 8.1 | VideoPlayerPool 接口 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt:5-12` | 查看接口定义：acquire/release/releaseAll | 接口已定义，等待实现 |
 | 8.2 | SimpleVideoPlayerPool 实现 | ✅ 已实现 | `ui/components/VideoPlayerPool.kt` | 基于 `Map<String, ExoPlayer>` 的简单实现 | 已通过视频卡片租借/释放播放器 |
 | 8.3 | Media3 ExoPlayer / UI 依赖 | ✅ 已引入 | `app/build.gradle.kts` | Gradle 已引入 `media3-exoplayer` 和 `media3-ui` | 依赖就绪 |
-| 8.4 | 真实视频播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `data/MockFeedDataSource.kt`, `res/raw/ad_demo_video.mp4` | 滚动到视频卡片，点击播放按钮开始播放本地 MP4 | 当前为点击播放，不自动播放 |
+| 8.4 | 真实视频播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `data/MockFeedDataSource.kt` | 滚动到视频卡片，点击播放按钮播放在线 MP4 | 使用开发测试视频源，当前为点击播放 |
 | 8.5 | 离屏暂停 / 释放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频卡片离开组合时 pause 并 release | 基于 Compose dispose 生命周期 |
 | 8.6 | 静音播放 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 视频默认音量 0，适合信息流场景 | 可在后续加静音按钮 |
 | 8.7 | 首帧预加载 | ❌ 未实现 | — | — | 计划特性 |

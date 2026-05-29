@@ -1,6 +1,5 @@
 package com.example.myapplication.data
 
-import com.example.myapplication.R
 import kotlinx.coroutines.delay
 
 /**
@@ -45,7 +44,11 @@ object MockFeedDataSource {
             listOf("视频创意", "强种草", "年轻人偏好", "学生党"),
             listOf("电商爆款", "满减", "包邮", "复购高", "性价比")
         )
-        val localVideoUri = "android.resource://com.example.myapplication/${R.raw.ad_demo_video}"
+        val videoUrls = listOf(
+            "https://placeholdervideo.dev/640x360",
+            "https://placeholdervideo.dev/1280x720",
+            "https://placeholdervideo.dev/480x270"
+        )
 
         val startIndex = (page - 1) * pageSize
         return List(pageSize) { localIndex ->
@@ -72,7 +75,7 @@ object MockFeedDataSource {
                 type = type,
                 category = category,
                 coverUrl = "${covers[index % covers.size]}?auto=format&fit=crop&w=1200&q=80",
-                videoUrl = if (type == FeedItemType.VIDEO) localVideoUri else null,
+                videoUrl = if (type == FeedItemType.VIDEO) videoUrls[index % videoUrls.size] else null,
                 likesCount = 128 + refreshSeed * 11 + index * 17,
                 commentsCount = 12 + refreshSeed + index * 3,
                 isLiked = index % 5 == 0,
