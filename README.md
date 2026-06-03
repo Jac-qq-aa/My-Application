@@ -34,6 +34,7 @@
 - 列表页 / 详情页收藏状态同步
 - 系统分享面板真实调用
 - 详情页评论区与本地评论发布
+- 本地评论持久化保存
 - 页面切换动画
 - 点赞浮动爱心彩蛋
 - 收藏缩放动效
@@ -119,7 +120,7 @@ File > Sync Project with Gradle Files
 - 卡片类型通过 `contentType` 区分。
 - 曝光、点击等事件统一走 `AdTracker`。
 - 图片统一使用 Coil 加载，并显式开启内存缓存、磁盘缓存和网络缓存。
-- 点赞 / 收藏持久化由 Java 类 `FeedInteractionStore` 负责，ViewModel 不直接操作 SharedPreferences。
+- 点赞 / 收藏持久化由 Java 类 `FeedInteractionStore` 负责，评论持久化由 `FeedCommentStore` 负责，ViewModel 不直接操作 SharedPreferences。
 - 视频素材使用 Pexels 直连 MP4，首次播放由 `VideoCacheManager` 写入 `cacheDir/video_cache`，下载失败时降级为在线播放。
 
 ## 本地 Qwen 摘要和标签
@@ -190,4 +191,4 @@ AI 辅助内容包括：
 
 - 对搜索结果排序和召回策略继续优化
 - 视业务复杂度引入 Room / Paging 3 / Hilt
-- 增加 Compose UI 测试和 ViewModel 单元测试
+- 增加 Compose UI 自动化测试

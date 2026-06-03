@@ -23,12 +23,19 @@ import kotlinx.coroutines.launch
  * 2. 通过 viewModelScope 启动协程，自动跟随 ViewModel 生命周期取消任务；
  * 3. 通过 StateFlow 向 UI 暴露“可观察、可订阅、始终有当前值”的响应式数据。
  */
-class FeedViewModel(application: Application) : AndroidViewModel(application) {
+class FeedViewModel(
+    application: Application,
+    private val feedRepository: FeedRepository
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(
+        application = application,
+        feedRepository = DefaultFeedRepository(application)
+    )
+
     private companion object {
         const val PageSize = 20
     }
 
-    private val feedRepository: FeedRepository = DefaultFeedRepository(application)
     private val allItems = MutableStateFlow<List<FeedItem>>(emptyList())
     private val selectedCategory = MutableStateFlow(FeedCategory.FEATURED)
     private val selectedTag = MutableStateFlow<String?>(null)
@@ -99,6 +106,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                     refreshSeed = refreshSeed
                 )
                 allItems.value = loadedItems
+                restoreComments(loadedItems)
                 hasLoadedOnce = true
                 screenState.value = loadedItems
                     .filter { it.category == selectedCategory.value }
@@ -142,6 +150,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                     networkDelayMillis = 700
                 )
                 allItems.value = allItems.value + nextItems
+                restoreComments(nextItems)
                 generateAiInsights(nextItems, cancelRunning = false)
                 currentPage.value = nextPage
                 hasMoreItems.value = nextItems.isNotEmpty() && nextPage < 5
@@ -214,6 +223,22 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun restoreComments(items: List<FeedItem>) {
+        val restoredComments = items
+            .mapNotNull { item ->
+                val comments = feedRepository.getComments(item.id)
+                if (comments.isEmpty()) null else item.id to comments
+            }
+            .toMap()
+        if (restoredComments.isNotEmpty()) {
+            commentsByItemId.value = commentsByItemId.value + restoredComments
+            allItems.value = allItems.value.map { item ->
+                val localCount = restoredComments[item.id]?.size ?: return@map item
+                item.copy(commentsCount = item.commentsCount + localCount)
+            }
+        }
+    }
+
     /**
      * 点赞状态切换。
      *
@@ -248,13 +273,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         if (trimmedContent.isEmpty()) return
 
         val currentComments = commentsByItemId.value[itemId].orEmpty()
-        val newComment = FeedComment(
-            id = "${itemId}_comment_${currentComments.size + 1}_${System.currentTimeMillis()}",
-            itemId = itemId,
-            author = "我",
-            content = trimmedContent,
-            timestampLabel = "刚刚"
-        )
+        val newComment = feedRepository.addComment(itemId, trimmedContent)
         commentsByItemId.value = commentsByItemId.value + (itemId to (listOf(newComment) + currentComments))
         allItems.value = allItems.value.map { item ->
             if (item.id == itemId) {

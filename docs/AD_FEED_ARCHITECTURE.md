@@ -84,6 +84,14 @@ tracking/
 - ViewModel 加载 Mock 数据后，将持久化状态恢复到 `FeedItem`。
 - Java 类负责本地存储细节，Kotlin ViewModel 不直接操作 SharedPreferences。
 
+`FeedCommentStore.kt` 使用 SharedPreferences 保存用户本地发布的评论。
+
+保存策略：
+
+- 按广告 id 保存本地评论列表。
+- 详情页发布评论后立即写入本地存储。
+- ViewModel 加载广告数据后，通过 `FeedRepository` 恢复对应广告的本地评论和评论数。
+
 `data/ai/` 负责广告内容理解：
 
 - `OllamaQwenAiInsightGenerator` 调用本地 Ollama Qwen 服务生成摘要和标签。

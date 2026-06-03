@@ -1,6 +1,7 @@
 package com.example.myapplication.data.repository
 
 import android.content.Context
+import com.example.myapplication.data.FeedComment
 import com.example.myapplication.data.FeedItem
 import com.example.myapplication.data.MockFeedDataSource
 import com.example.myapplication.data.ai.AiAdInsight
@@ -8,6 +9,7 @@ import com.example.myapplication.data.ai.AiInsightGenerator
 import com.example.myapplication.data.ai.CachingAiInsightGenerator
 import com.example.myapplication.data.ai.HybridAiInsightGenerator
 import com.example.myapplication.data.ai.SharedPreferencesAiInsightCache
+import com.example.myapplication.data.local.FeedCommentStore
 import com.example.myapplication.data.local.FeedInteractionStore
 
 interface FeedRepository {
@@ -23,11 +25,16 @@ interface FeedRepository {
     fun toggleLike(item: FeedItem): FeedItem
 
     fun toggleCollect(item: FeedItem): FeedItem
+
+    fun getComments(itemId: String): List<FeedComment>
+
+    fun addComment(itemId: String, content: String): FeedComment
 }
 
 class DefaultFeedRepository(
     context: Context,
     private val interactionStore: FeedInteractionStore = FeedInteractionStore(context),
+    private val commentStore: FeedCommentStore = FeedCommentStore(context),
     private val aiInsightGenerator: AiInsightGenerator = CachingAiInsightGenerator(
         delegate = HybridAiInsightGenerator(),
         cache = SharedPreferencesAiInsightCache(context)
@@ -64,6 +71,14 @@ class DefaultFeedRepository(
         val nextCollected = !item.isCollected
         interactionStore.setCollected(item.id, nextCollected)
         return item.copy(isCollected = nextCollected)
+    }
+
+    override fun getComments(itemId: String): List<FeedComment> {
+        return commentStore.getComments(itemId)
+    }
+
+    override fun addComment(itemId: String, content: String): FeedComment {
+        return commentStore.addComment(itemId, content)
     }
 
     private fun List<FeedItem>.restorePersistedInteractions(): List<FeedItem> {

@@ -293,7 +293,9 @@ viewmodel/FeedViewModel.kt
 - `viewModelScope` 管理协程生命周期。
 - `StateFlow` 暴露给 Compose。
 - 点赞 / 收藏的用户操作状态通过 Java 编写的 `FeedInteractionStore` 写入 SharedPreferences。
+- 用户本地发布的评论通过 `FeedCommentStore` 写入 SharedPreferences。
 - Mock 数据重新加载后，ViewModel 会把 SharedPreferences 中的显式用户操作状态恢复到 `FeedItem` 上。
+- 广告数据加载后，ViewModel 会通过 Repository 恢复对应广告的本地评论，并同步评论数。
 
 核心链路：
 

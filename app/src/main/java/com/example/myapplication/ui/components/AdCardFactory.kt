@@ -193,24 +193,27 @@ fun AdVideoMedia(
     item: FeedItem,
     shouldAutoPlay: Boolean = false,
     shouldPreload: Boolean = false,
+    // 列表和详情页可能同时在 back stack 中，使用不同 key 避免两个 PlayerView 争用同一个 ExoPlayer。
+    playerKey: String = item.id,
     modifier: Modifier = Modifier
 ) {
     val videoUrl = item.videoUrl
-    var isPlaying by remember(item.id) { mutableStateOf(false) }
-    var isPreparing by remember(item.id, videoUrl) { mutableStateOf(false) }
-    var playableUri by remember(item.id, videoUrl) { mutableStateOf<Uri?>(null) }
-    var isPrepared by remember(item.id, videoUrl) { mutableStateOf(false) }
-    var isMuted by remember(item.id) { mutableStateOf(true) }
-    var isFullscreen by remember(item.id) { mutableStateOf(false) }
-    var manualPlayRequested by remember(item.id) { mutableStateOf(false) }
+    var isPlaying by remember(playerKey) { mutableStateOf(false) }
+    var isPreparing by remember(playerKey, videoUrl) { mutableStateOf(false) }
+    var playableUri by remember(playerKey, videoUrl) { mutableStateOf<Uri?>(null) }
+    var isPrepared by remember(playerKey, videoUrl) { mutableStateOf(false) }
+    var isMuted by remember(playerKey) { mutableStateOf(true) }
+    var isFullscreen by remember(playerKey) { mutableStateOf(false) }
+    var manualPlayRequested by remember(playerKey) { mutableStateOf(false) }
+    var cacheStarted by remember(playerKey, videoUrl) { mutableStateOf(false) }
     val shouldPlay = shouldAutoPlay || manualPlayRequested
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val player = remember(item.id, videoUrl) {
+    val player = remember(playerKey, videoUrl) {
         if (videoUrl == null) {
             null
         } else {
-            FeedVideoPlayerPool.acquire(context, item.id).apply {
+            FeedVideoPlayerPool.acquire(context, playerKey).apply {
                 repeatMode = Player.REPEAT_MODE_ONE
                 volume = if (isMuted) 0f else 1f
             }
@@ -245,13 +248,24 @@ fun AdVideoMedia(
         }
         isPreparing = true
         playableUri = VideoCacheManager.getPlayableVideoUri(context, videoUrl)
+        isPreparing = false
     }
 
-    DisposableEffect(item.id, player) {
+    LaunchedEffect(videoUrl, playableUri, cacheStarted) {
+        val remoteUrl = videoUrl ?: return@LaunchedEffect
+        if (cacheStarted || playableUri == null || playableUri.toString() != remoteUrl) {
+            return@LaunchedEffect
+        }
+        cacheStarted = true
+        // 缓存是后台优化；失败时仍保持远程 URL 播放，不让用户一直等完整下载。
+        VideoCacheManager.cacheVideo(context, remoteUrl)
+    }
+
+    DisposableEffect(playerKey, player) {
         onDispose {
             player?.pause()
             isFullscreen = false
-            FeedVideoPlayerPool.release(item.id)
+            FeedVideoPlayerPool.release(playerKey)
         }
     }
 
@@ -297,8 +311,9 @@ fun AdVideoMedia(
                     scope.launch {
                         manualPlayRequested = true
                         isPreparing = true
-                        // 第一次播放先下载到本地缓存；已缓存时这个函数会直接返回本地文件 Uri。
+                        // 优先立即播放：有缓存则使用本地文件，否则先在线播放，并在后台写入缓存。
                         playableUri = VideoCacheManager.getPlayableVideoUri(context, videoUrl)
+                        isPreparing = false
                     }
                 }
             )

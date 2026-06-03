@@ -340,6 +340,7 @@ private fun DetailMedia(item: FeedItem) {
     if (item.type == FeedItemType.VIDEO) {
         AdVideoMedia(
             item = item,
+            playerKey = "detail_${item.id}",
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)

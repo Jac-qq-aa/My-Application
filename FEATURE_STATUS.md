@@ -79,7 +79,7 @@
 | 5.9 | 分享旋转动效 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 点击分享 → 图标轻微旋转反馈 | 使用 `animateFloatAsState` |
 | 5.10 | 视频播放按钮呼吸动效 | ✅ 已实现 | `ui/components/AdCardFactory.kt:101-110` | 视频卡片显示呼吸灯效果的播放按钮 | `rememberInfiniteTransition` + scale 1.0→1.08 |
 | 5.11 | 互动计数动画 | ✅ 已实现 | `ui/feed/FeedScreen.kt:207-218` | 统计数据变化时数字以动画过渡 | `animateIntAsState` |
-| 5.12 | 评论功能 | ✅ 已实现 | `ui/detail/DetailScreen.kt`, `viewmodel/FeedViewModel.kt`, `data/FeedComment.kt` | 详情页展示评论列表，可发布本地评论，列表评论数同步增加 | 评论暂存内存，未接数据库 |
+| 5.12 | 评论功能 | ✅ 已实现 | `ui/detail/DetailScreen.kt`, `viewmodel/FeedViewModel.kt`, `data/FeedComment.kt`, `data/local/FeedCommentStore.kt` | 详情页展示评论列表，可发布本地评论，列表评论数同步增加 | 本地评论已通过 SharedPreferences 持久化，未接数据库 |
 | 5.13 | 分享真实调用 (Intent) | ✅ 已实现 | `ui/share/ShareUtils.kt` | 列表页和详情页分享按钮均可拉起系统分享面板 | 保留原有分享埋点统计 |
 
 ---
@@ -181,7 +181,7 @@
 | 12.1 | 版本目录 (libs.versions.toml) | ✅ 已实现 | `gradle/libs.versions.toml` | 集中管理 35+ 依赖版本 | — |
 | 12.2 | Material 3 主题 | ✅ 已实现 | `ui/theme/Theme.kt` | 支持亮色/暗色 + Android 12 动态取色 | — |
 | 12.3 | 暗色模式 | ✅ 已实现 | `ui/theme/Theme.kt:30-40` | 系统切换暗色模式 → App 自动跟随 | — |
-| 12.4 | 核心逻辑单元测试 | ✅ 已实现 | `app/src/test/java/.../CachingAiInsightGeneratorTest.kt`, `TrackingStatsTest.kt` | 执行 `gradlew :app:testDebugUnitTest` | 覆盖 AI 缓存与统计派生指标；ViewModel Android 依赖仍待进一步隔离 |
+| 12.4 | 核心逻辑与 ViewModel 单元测试 | ✅ 已实现 | `app/src/test/java/.../CachingAiInsightGeneratorTest.kt`, `TrackingStatsTest.kt`, `FeedViewModelTest.kt` | 执行 `gradlew :app:testDebugUnitTest` | 覆盖 AI 缓存、统计派生指标、首屏加载、分页错误、标签筛选和评论持久化 |
 | 12.5 | Compose UI 测试 | ❌ 未实现 | — | — | 依赖已声明但无实际测试 |
 | 12.6 | 插桩测试 | ❌ 未实现 | — | — | 仅有一个 ExampleInstrumentedTest |
 | 12.7 | ProGuard 混淆 | ❌ 未配置 | `app/proguard-rules.pro` | — | 文件为空，发布前需配置 |
@@ -242,7 +242,7 @@
 | P1 | 对话式搜索页面 | README 列为后续计划，是差异化亮点 |
 | P1 | 真实 AI 摘要/标签生成 | 已接入 Qwen/Ollama、本地规则降级和缓存 |
 | P1 | 统计详情页/图表 | 已完成基础指标和图表，后续可扩展趋势分析 |
-| P2 | 评论功能 | 已完成基础本地评论，后续可接入持久化和评论详情 |
+| P2 | 评论功能 | 已完成本地发布和持久化，后续可接入 Room 或真实评论接口 |
 | P2 | 分享真实调用 (Intent) | 已完成 |
 
 ### 低优先级（架构演进）
@@ -253,6 +253,6 @@
 | P2 | Room 本地缓存 | 无网络请求，暂无缓存需求 |
 | P2 | Hilt 依赖注入 | 单 ViewModel 场景够用 |
 | P3 | Paging 3 | 手写分页可控，接入收益不大 |
-| P3 | Compose UI 测试 + ViewModel 单元测试 | 已补核心 JVM 测试；Compose UI 和 ViewModel 隔离测试后续补 |
+| P3 | Compose UI 测试 | ViewModel JVM 测试已补；Compose UI 自动化测试后续补 |
 | P3 | ProGuard 混淆 | 开发阶段不需要 |
 | P3 | 演示视频录制 | 答辩前完成即可 |
