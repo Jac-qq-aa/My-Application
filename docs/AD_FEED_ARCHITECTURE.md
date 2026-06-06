@@ -75,20 +75,20 @@ tracking/
 
 这样做的好处是：状态不可变、变化可追踪、Compose 更容易做精准重组。
 
-`FeedInteractionStore.java` 使用 Java + SharedPreferences 保存点赞/收藏互动状态。
+`FeedInteractionStore.java` 使用 Java + SQLite 保存点赞/收藏互动状态，并在首次访问时兼容迁移旧 SharedPreferences 数据。
 
 保存策略：
 
 - 保存用户显式点赞 / 取消点赞的广告 id。
 - 保存用户显式收藏 / 取消收藏的广告 id。
 - ViewModel 加载 Mock 数据后，将持久化状态恢复到 `FeedItem`。
-- Java 类负责本地存储细节，Kotlin ViewModel 不直接操作 SharedPreferences。
+- Java 类负责本地存储细节，Kotlin ViewModel 不直接操作 SQLite。
 
-`FeedCommentStore.kt` 使用 SharedPreferences 保存用户本地发布的评论。
+`FeedCommentStore.kt` 使用 SQLite 保存用户本地发布的评论，并在首次访问时兼容迁移旧 SharedPreferences 评论数据。
 
 保存策略：
 
-- 按广告 id 保存本地评论列表。
+- 按广告 id 查询本地评论列表。
 - 详情页发布评论后立即写入本地存储。
 - ViewModel 加载广告数据后，通过 `FeedRepository` 恢复对应广告的本地评论和评论数。
 
@@ -139,7 +139,7 @@ StateFlow<List<FeedItem>>
 
 ### tracking 层
 
-`AdTracker.kt` 当前使用 `Log.d` 模拟埋点。
+`AdTracker.kt` 当前会写入 `TrackingStore.kt` 的 SQLite 事件表，同时保留 `Log.d` 调试输出。
 
 后续接入真实埋点 SDK 时，只需要替换这一层，不需要修改 UI。
 

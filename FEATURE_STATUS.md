@@ -79,7 +79,7 @@
 | 5.9 | 分享旋转动效 | ✅ 已实现 | `ui/components/AdCardFactory.kt` | 点击分享 → 图标轻微旋转反馈 | 使用 `animateFloatAsState` |
 | 5.10 | 视频播放按钮呼吸动效 | ✅ 已实现 | `ui/components/AdCardFactory.kt:101-110` | 视频卡片显示呼吸灯效果的播放按钮 | `rememberInfiniteTransition` + scale 1.0→1.08 |
 | 5.11 | 互动计数动画 | ✅ 已实现 | `ui/feed/FeedScreen.kt:207-218` | 统计数据变化时数字以动画过渡 | `animateIntAsState` |
-| 5.12 | 评论功能 | ✅ 已实现 | `ui/detail/DetailScreen.kt`, `viewmodel/FeedViewModel.kt`, `data/FeedComment.kt`, `data/local/FeedCommentStore.kt` | 详情页展示评论列表，可发布本地评论，列表评论数同步增加 | 本地评论已通过 SharedPreferences 持久化，未接数据库 |
+| 5.12 | 评论功能 | ✅ 已实现 | `ui/detail/DetailScreen.kt`, `viewmodel/FeedViewModel.kt`, `data/FeedComment.kt`, `data/local/FeedCommentStore.kt` | 详情页展示评论列表，可发布本地评论，列表评论数同步增加 | 本地评论已通过 SQLite 持久化，兼容迁移旧 SharedPreferences 评论 |
 | 5.13 | 分享真实调用 (Intent) | ✅ 已实现 | `ui/share/ShareUtils.kt` | 列表页和详情页分享按钮均可拉起系统分享面板 | 保留原有分享埋点统计 |
 
 ---
@@ -94,7 +94,7 @@
 | 6.4 | 标签限行 (FlowRow maxLines) | ✅ 已实现 | `ui/components/AdCardFactory.kt:213` | 标签超过 2 行时隐藏溢出项 | 同上 |
 | 6.5 | 标签点击过滤 | ✅ 已实现 | `viewmodel/FeedViewModel.kt:42-50` | 见 2.3 | — |
 | 6.6 | 真实 AI 生成摘要/标签 | ✅ 已实现 | `data/ai/OllamaQwenAiInsightGenerator.kt`, `data/ai/HybridAiInsightGenerator.kt` | 启动 Ollama Qwen 后进入列表，摘要会替换为 Qwen 结果 | Qwen 不可用时自动降级到本地规则 |
-| 6.7 | AI 摘要/标签缓存 | ✅ 已实现 | `data/ai/AiInsightCache.kt`, `viewmodel/FeedViewModel.kt` | 同一广告再次生成时优先命中 SharedPreferences 缓存 | 缓存 key 包含 adId 与 modelVersion |
+| 6.7 | AI 摘要/标签缓存 | ✅ 已实现 | `data/ai/AiInsightCache.kt`, `viewmodel/FeedViewModel.kt` | 同一广告再次生成时优先命中 SQLite 缓存 | 缓存 key 包含 adId 与 modelVersion，兼容迁移旧 SharedPreferences 缓存 |
 | 6.8 | 结构化 AI 输出约束 | ✅ 已实现 | `data/ai/OllamaQwenAiInsightGenerator.kt` | Qwen 只允许返回 JSON；解析失败会降级 | 校验 summary 非空、tags 非空，并限制标签数量和长度 |
 
 ---
@@ -103,19 +103,19 @@
 
 | 序号 | 功能 | 状态 | 对应文件 | 演示方式 | 风险 / 备注 |
 |------|------|------|----------|----------|-------------|
-| 7.1 | 有效曝光追踪 | ✅ 已实现 | `ui/feed/FeedScreen.kt:231-272` | 卡片可见 ≥50% 且停留 1 秒 → Log.d 输出 | 口径：50% 可见面积 + 1 秒连续停留 + 去重 |
-| 7.2 | 曝光去重 | ✅ 已实现 | `tracking/AdTracker.kt:17-24` | 同一条广告只上报一次曝光 | 使用 `exposedIds: MutableSet<String>` |
+| 7.1 | 有效曝光追踪 | ✅ 已实现 | `ui/feed/FeedScreen.kt`, `tracking/AdTracker.kt`, `tracking/TrackingStore.kt` | 卡片可见 ≥50% 且停留 1 秒 → 写入 SQLite 并更新统计 | 口径：50% 可见面积 + 1 秒连续停留 + 去重 |
+| 7.2 | 曝光去重 | ✅ 已实现 | `tracking/AdTracker.kt`, `tracking/TrackingStore.kt` | 同一条广告只上报一次曝光 | 去重集合会从 SQLite 恢复 |
 | 7.3 | 点击追踪（卡片） | ✅ 已实现 | `ui/feed/FeedScreen.kt:179` | 点击卡片 → 记录 click 事件 | — |
 | 7.4 | 点击追踪（点赞） | ✅ 已实现 | `ui/components/AdCardFactory.kt:260` | 点赞 → 记录 like 事件 | — |
 | 7.5 | 点击追踪（收藏） | ✅ 已实现 | `ui/components/AdCardFactory.kt:343` | 收藏 → 记录 collect 事件 | — |
 | 7.6 | 点击追踪（分享） | ✅ 已实现 | `ui/components/AdCardFactory.kt`, `ui/detail/DetailScreen.kt` | 分享 → 拉起系统分享并记录 share 事件 | — |
 | 7.7 | 点击追踪（标签） | ✅ 已实现 | `ui/feed/FeedScreen.kt:220` | 点击标签 → 记录 tag 事件 | — |
 | 7.7.1 | 点击追踪（评论） | ✅ 已实现 | `ui/feed/FeedScreen.kt`, `ui/detail/DetailScreen.kt` | 点击评论入口或发布评论 → 记录 comment 相关事件 | 本地统计归入点击数 |
-| 7.8 | 统计面板 | ✅ 已实现 | `ui/feed/FeedScreen.kt:74-100` | 列表顶部显示曝光/点击/点赞/收藏/分享计数 | 数字有动画 |
+| 7.8 | 统计面板 | ✅ 已实现 | `ui/feed/FeedScreen.kt`, `tracking/TrackingStore.kt` | 列表顶部显示曝光/点击/点赞/收藏/分享计数 | 数字有动画，重启后从 SQLite 恢复 |
 | 7.9 | 统计面板入口 | ✅ 已实现 | `ui/feed/FeedScreen.kt` | 点击首页统计面板进入统计详情页 | 使用 `animateContentSize` 保持数字变化平滑 |
 | 7.10 | 批量事件上报 | ❌ 未实现 | — | — | 当前每次事件即时 Log，无队列批量上报 |
 | 7.11 | 统计详情页/图表 | ✅ 已实现 | `ui/stats/StatsScreen.kt`, `MainActivity.kt` | 展示指标卡片、CTR/互动率圆环、事件分布柱状图 | 纯 Compose 绘制，无额外图表库 |
-| 7.12 | 埋点上报到真实服务 | ❌ 未实现 | — | — | 当前仅 `Log.d`，未接入任何埋点 SDK |
+| 7.12 | 埋点上报到真实服务 | ❌ 未实现 | — | — | 当前已本地 SQLite 落库，未接入任何埋点 SDK |
 
 ---
 
@@ -242,7 +242,7 @@
 | P1 | 对话式搜索页面 | README 列为后续计划，是差异化亮点 |
 | P1 | 真实 AI 摘要/标签生成 | 已接入 Qwen/Ollama、本地规则降级和缓存 |
 | P1 | 统计详情页/图表 | 已完成基础指标和图表，后续可扩展趋势分析 |
-| P2 | 评论功能 | 已完成本地发布和持久化，后续可接入 Room 或真实评论接口 |
+| P2 | 评论功能 | 已完成本地发布和 SQLite 持久化，后续可接入 Room 或真实评论接口 |
 | P2 | 分享真实调用 (Intent) | 已完成 |
 
 ### 低优先级（架构演进）

@@ -15,7 +15,7 @@
 - Navigation Compose
 - Media3 ExoPlayer
 - Coil
-- Java SharedPreferences 持久化层
+- SQLite 本地持久化层
 - 本地 Qwen/Ollama AI 生成器
 
 ## 已实现功能
@@ -76,7 +76,7 @@
 ```text
 app/src/main/java/com/example/myapplication/
   data/          数据模型、Mock 数据源与 Repository
-    local/       Java SharedPreferences 持久化存储
+    local/       SQLite 本地持久化存储
     repository/  FeedRepository 数据入口
   viewmodel/     FeedViewModel，负责状态管理
   ui/feed/       信息流页面
@@ -120,7 +120,7 @@ File > Sync Project with Gradle Files
 - 卡片类型通过 `contentType` 区分。
 - 曝光、点击等事件统一走 `AdTracker`。
 - 图片统一使用 Coil 加载，并显式开启内存缓存、磁盘缓存和网络缓存。
-- 点赞 / 收藏持久化由 Java 类 `FeedInteractionStore` 负责，评论持久化由 `FeedCommentStore` 负责，ViewModel 不直接操作 SharedPreferences。
+- 点赞 / 收藏、评论、AI 缓存和埋点统计均通过 SQLite 持久化，ViewModel 不直接操作具体存储 API。
 - 视频素材使用 Pexels 直连 MP4，首次播放由 `VideoCacheManager` 写入 `cacheDir/video_cache`，下载失败时降级为在线播放。
 
 ## 本地 Qwen 摘要和标签

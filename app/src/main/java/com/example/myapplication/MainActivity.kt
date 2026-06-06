@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 val feedViewModel: FeedViewModel = viewModel()
                 val navController = rememberNavController()
-                val tracker = remember { AdTracker() }
+                val tracker = remember { AdTracker(applicationContext) }
 
                 NavHost(
                     navController = navController,

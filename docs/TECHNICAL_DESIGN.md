@@ -292,9 +292,9 @@ viewmodel/FeedViewModel.kt
 - 页面状态由 `FeedViewModel` 持有。
 - `viewModelScope` 管理协程生命周期。
 - `StateFlow` 暴露给 Compose。
-- 点赞 / 收藏的用户操作状态通过 Java 编写的 `FeedInteractionStore` 写入 SharedPreferences。
-- 用户本地发布的评论通过 `FeedCommentStore` 写入 SharedPreferences。
-- Mock 数据重新加载后，ViewModel 会把 SharedPreferences 中的显式用户操作状态恢复到 `FeedItem` 上。
+- 点赞 / 收藏的用户操作状态通过 Java 编写的 `FeedInteractionStore` 写入 SQLite。
+- 用户本地发布的评论通过 `FeedCommentStore` 写入 SQLite。
+- Mock 数据重新加载后，ViewModel 会把 SQLite 中的显式用户操作状态恢复到 `FeedItem` 上。
 - 广告数据加载后，ViewModel 会通过 Repository 恢复对应广告的本地评论，并同步评论数。
 
 核心链路：
@@ -324,10 +324,13 @@ viewmodel/FeedViewModel.kt
 
 ### 5.4 本地持久化方案
 
-参考项目中常见的本地持久化方案包括 Room、DataStore 和 SharedPreferences。当前项目优先保存的是轻量互动状态，因此先使用 Java + SharedPreferences 实现：
+参考项目中常见的本地持久化方案包括 Room、DataStore、SQLite 和 SharedPreferences。当前项目统一使用 Android 原生 SQLite 保存本地数据，SharedPreferences 仅作为旧版本数据的一次性迁移来源。
 
 ```text
 data/local/FeedInteractionStore.java
+data/local/FeedCommentStore.kt
+data/ai/AiInsightCache.kt
+tracking/TrackingStore.kt
 ```
 
 保存内容：
@@ -336,19 +339,23 @@ data/local/FeedInteractionStore.java
 - 用户显式取消点赞的广告 id。
 - 用户显式收藏的广告 id。
 - 用户显式取消收藏的广告 id。
+- 用户在详情页本地发布的评论。
+- AI 摘要和标签缓存。
+- 本地曝光、点击、点赞、收藏、分享统计事件。
 
 这样设计的原因：
 
-- 仅保存少量 id 集合，SharedPreferences 足够轻量。
+- SQLite 适合按广告 id 查询、追加、排序和后续扩展，比 SharedPreferences JSON 更适合承载评论、缓存和事件数据。
 - Java 类满足“用 Java 实现持久化保存”的训练要求。
-- Kotlin ViewModel 只依赖存储类方法，不直接依赖 SharedPreferences API。
+- Kotlin ViewModel 只依赖存储类方法，不直接依赖 SQLite API。
 - 后续升级 Room 时，可以把 `FeedInteractionStore` 替换为 DAO/Repository，UI 层不需要大改。
 
 方案对比：
 
 | 方案 | 优点 | 缺点 | 当前结论 |
 | --- | --- | --- | --- |
-| SharedPreferences | 简单、轻量、适合保存少量互动状态 | 不适合复杂查询和大数据量 | 当前采用 |
+| SharedPreferences | 简单、轻量、适合保存少量互动状态 | 不适合复杂查询和大数据量 | 仅用于旧数据迁移 |
+| SQLiteOpenHelper | Android 原生支持，适合本地列表数据和条件查询 | 手写 SQL 和迁移逻辑成本更高 | 当前采用 |
 | DataStore | 类型更安全，异步 Flow 友好 | 接入成本略高 | 后续可选 |
 | Room | 适合广告缓存、离线列表、复杂查询 | 对当前阶段偏重 | 后续演进 |
 
@@ -459,6 +466,7 @@ Compose 中没有传统 RecyclerView 的 ViewHolder，但 LazyColumn 会复用 i
 ui/feed/FeedScreen.kt -> TrackEffectiveExposure
 tracking/AdTracker.kt
 tracking/TrackingModels.kt
+tracking/TrackingStore.kt
 ```
 
 ### 8.2 点击口径
@@ -472,6 +480,8 @@ tracking/TrackingModels.kt
 - 分享。
 - 详情页互动。
 
+统计事件会写入 SQLite，App 重启后可以恢复统计面板计数和已曝光广告集合。
+
 待补齐：
 
 - 更细的统计详情页。
@@ -481,7 +491,8 @@ tracking/TrackingModels.kt
 
 | 方案 | 优点 | 缺点 | 结论 |
 | --- | --- | --- | --- |
-| 点击即上报 Log | 简单直观 | 无法做失败重试和批量上报 | 当前可用 |
+| 点击即上报 Log | 简单直观 | 无法做失败重试和批量上报 | 已升级为辅助调试输出 |
+| SQLite 本地事件表 | 可恢复统计，可作为后续批量上报队列基础 | 仍未接真实服务端 | 当前采用 |
 | 本地事件队列批量上报 | 更接近生产 | 实现复杂 | 后续增强 |
 | 接真实埋点 SDK | 最生产化 | 训练营环境依赖外部服务 | 可选 |
 

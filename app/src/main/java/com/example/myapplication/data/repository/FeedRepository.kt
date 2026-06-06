@@ -8,7 +8,7 @@ import com.example.myapplication.data.ai.AiAdInsight
 import com.example.myapplication.data.ai.AiInsightGenerator
 import com.example.myapplication.data.ai.CachingAiInsightGenerator
 import com.example.myapplication.data.ai.HybridAiInsightGenerator
-import com.example.myapplication.data.ai.SharedPreferencesAiInsightCache
+import com.example.myapplication.data.ai.SQLiteAiInsightCache
 import com.example.myapplication.data.local.FeedCommentStore
 import com.example.myapplication.data.local.FeedInteractionStore
 
@@ -37,7 +37,7 @@ class DefaultFeedRepository(
     private val commentStore: FeedCommentStore = FeedCommentStore(context),
     private val aiInsightGenerator: AiInsightGenerator = CachingAiInsightGenerator(
         delegate = HybridAiInsightGenerator(),
-        cache = SharedPreferencesAiInsightCache(context)
+        cache = SQLiteAiInsightCache(context)
     )
 ) : FeedRepository {
     override suspend fun loadFeedItems(

@@ -1,6 +1,15 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+    }
 }
 
 android {
@@ -19,6 +28,22 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "QWEN_API_URL",
+            "\"${localProperties.getProperty("qwen.apiUrl", "https://dashscope.aliyuncs.com/compatible-mode/v1")}\""
+        )
+        buildConfigField(
+            "String",
+            "QWEN_API_KEY",
+            "\"${localProperties.getProperty("qwen.apiKey", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "QWEN_MODEL",
+            "\"${localProperties.getProperty("qwen.model", "qianwen3.5plus")}\""
+        )
     }
 
     buildTypes {
@@ -36,6 +61,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

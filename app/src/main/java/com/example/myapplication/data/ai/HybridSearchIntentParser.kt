@@ -1,7 +1,7 @@
 package com.example.myapplication.data.ai
 
 class HybridSearchIntentParser(
-    private val remoteParser: SearchIntentParser = OllamaQwenSearchIntentParser(),
+    private val remoteParser: SearchIntentParser = DashScopeQwenSearchIntentParser(),
     private val fallbackParser: SearchIntentParser = LocalRuleSearchIntentParser()
 ) : SearchIntentParser {
     private var remoteDisabled = false

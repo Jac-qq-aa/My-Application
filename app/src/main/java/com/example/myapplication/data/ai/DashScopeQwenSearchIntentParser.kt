@@ -1,5 +1,6 @@
 package com.example.myapplication.data.ai
 
+import com.example.myapplication.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -9,26 +10,24 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
-/**
- * 用本地 Qwen 把自然语言搜索解析成结构化意图。
- *
- * UI 不直接拿模型输出做展示列表，而是把输出约束为 keywords/tags/category/mediaType，
- * 再用本地广告字段做可解释匹配，避免模型直接“编造”不存在的广告。
- */
-class OllamaQwenSearchIntentParser(
-    private val baseUrl: String = "http://10.242.173.63:11434",
-    private val model: String = "qwen2.5:0.5b",
-    private val timeoutMillis: Long = 6_000
+class DashScopeQwenSearchIntentParser(
+    private val baseUrl: String = BuildConfig.QWEN_API_URL,
+    private val apiKey: String = BuildConfig.QWEN_API_KEY,
+    private val model: String = BuildConfig.QWEN_MODEL,
+    private val timeoutMillis: Long = 10_000
 ) : SearchIntentParser {
     override suspend fun parse(query: String): SearchIntent {
+        require(apiKey.isNotBlank()) { "Qwen API key is empty" }
+
         return withContext(Dispatchers.IO) {
             withTimeout(timeoutMillis) {
-                val connection = (URL("$baseUrl/api/chat").openConnection() as HttpURLConnection).apply {
+                val connection = (URL("${baseUrl.trimEnd('/')}/chat/completions").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = timeoutMillis.toInt()
                     readTimeout = timeoutMillis.toInt()
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    setRequestProperty("Authorization", "Bearer $apiKey")
                 }
 
                 try {
@@ -44,7 +43,7 @@ class OllamaQwenSearchIntentParser(
                     }
 
                     if (responseCode !in 200..299) {
-                        error("Qwen search intent error: $responseCode $responseText")
+                        error("DashScope Qwen search intent error: $responseCode $responseText")
                     }
 
                     parseResponse(responseText)
@@ -77,6 +76,8 @@ class OllamaQwenSearchIntentParser(
     private fun parseResponse(responseText: String): SearchIntent {
         val response = JSONObject(responseText)
         val content = response
+            .getJSONArray("choices")
+            .getJSONObject(0)
             .getJSONObject("message")
             .getString("content")
             .trim()

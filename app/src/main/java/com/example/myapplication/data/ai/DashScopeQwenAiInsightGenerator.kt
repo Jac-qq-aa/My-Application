@@ -1,5 +1,6 @@
 package com.example.myapplication.data.ai
 
+import com.example.myapplication.BuildConfig
 import com.example.myapplication.data.FeedItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,31 +11,24 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
-/**
- * 本地 Qwen/Ollama 客户端。
- *
- * 当前地址 `http://10.242.173.63:11434` 适用于真机访问电脑本机 Ollama。
- * 如果改用 Android Emulator，可以把 baseUrl 改回 `http://10.0.2.2:11434`。
- *
- * 推荐本地部署命令：
- * 1. 安装 Ollama；
- * 2. 执行 `ollama pull qwen2.5:0.5b`；
- * 3. 执行 `ollama serve`。
- */
-class OllamaQwenAiInsightGenerator(
-    private val baseUrl: String = "http://10.242.173.63:11434",
-    private val model: String = "qwen2.5:0.5b",
-    private val timeoutMillis: Long = 6_000
+class DashScopeQwenAiInsightGenerator(
+    private val baseUrl: String = BuildConfig.QWEN_API_URL,
+    private val apiKey: String = BuildConfig.QWEN_API_KEY,
+    private val model: String = BuildConfig.QWEN_MODEL,
+    private val timeoutMillis: Long = 10_000
 ) : AiInsightGenerator {
     override suspend fun generate(item: FeedItem): AiAdInsight {
+        require(apiKey.isNotBlank()) { "Qwen API key is empty" }
+
         return withContext(Dispatchers.IO) {
             withTimeout(timeoutMillis) {
-                val connection = (URL("$baseUrl/api/chat").openConnection() as HttpURLConnection).apply {
+                val connection = (URL("${baseUrl.trimEnd('/')}/chat/completions").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = timeoutMillis.toInt()
                     readTimeout = timeoutMillis.toInt()
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    setRequestProperty("Authorization", "Bearer $apiKey")
                 }
 
                 try {
@@ -50,7 +44,7 @@ class OllamaQwenAiInsightGenerator(
                     }
 
                     if (responseCode !in 200..299) {
-                        error("Qwen service error: $responseCode $responseText")
+                        error("DashScope Qwen service error: $responseCode $responseText")
                     }
 
                     parseResponse(responseText)
@@ -89,6 +83,8 @@ class OllamaQwenAiInsightGenerator(
     private fun parseResponse(responseText: String): AiAdInsight {
         val response = JSONObject(responseText)
         val content = response
+            .getJSONArray("choices")
+            .getJSONObject(0)
             .getJSONObject("message")
             .getString("content")
             .trim()

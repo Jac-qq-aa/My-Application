@@ -28,17 +28,24 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.myapplication.data.ai.AiStatsInsight
+import com.example.myapplication.data.ai.AiStatsInsightSource
+import com.example.myapplication.data.ai.HybridStatsInsightGenerator
+import com.example.myapplication.data.ai.StatsInsightGenerator
 import com.example.myapplication.tracking.AdTracker
 import com.example.myapplication.tracking.StatMetric
 import com.example.myapplication.tracking.TrackingStats
@@ -50,10 +57,20 @@ import java.util.Locale
 fun StatsScreen(
     tracker: AdTracker,
     onBack: () -> Unit,
+    statsInsightGenerator: StatsInsightGenerator? = null,
     modifier: Modifier = Modifier
 ) {
     val stats by tracker.stats.collectAsState()
     val metrics = stats.toStatMetrics()
+    val resolvedStatsInsightGenerator = statsInsightGenerator ?: remember { HybridStatsInsightGenerator() }
+    var aiInsight by remember { mutableStateOf<AiStatsInsight?>(null) }
+    var isGeneratingInsight by remember { mutableStateOf(false) }
+
+    LaunchedEffect(stats) {
+        isGeneratingInsight = true
+        aiInsight = resolvedStatsInsightGenerator.generate(stats)
+        isGeneratingInsight = false
+    }
 
     Scaffold(
         topBar = {
@@ -79,6 +96,12 @@ fun StatsScreen(
                 StatsSummary(stats = stats)
             }
             item {
+                AiStatsInsightCard(
+                    insight = aiInsight,
+                    isLoading = isGeneratingInsight
+                )
+            }
+            item {
                 MetricGrid(metrics = metrics)
             }
             item {
@@ -87,6 +110,85 @@ fun StatsScreen(
             item {
                 RateCard(stats = stats)
             }
+        }
+    }
+}
+
+@Composable
+private fun AiStatsInsightCard(
+    insight: AiStatsInsight?,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "AI 数据解读",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = when {
+                        isLoading -> "生成中"
+                        insight == null -> "待生成"
+                        else -> if (insight.source == AiStatsInsightSource.QWEN) "Qwen" else "本地规则"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+
+            if (insight == null) {
+                Text(
+                    text = "正在根据曝光、点击和互动数据生成分析。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            } else {
+                Text(
+                    text = insight.summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                InsightSection(title = "亮点", values = insight.highlights)
+                InsightSection(title = "风险", values = insight.risks)
+                InsightSection(title = "建议", values = insight.suggestions)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InsightSection(title: String, values: List<String>) {
+    if (values.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+        values.forEach { value ->
+            Text(
+                text = "• $value",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
         }
     }
 }

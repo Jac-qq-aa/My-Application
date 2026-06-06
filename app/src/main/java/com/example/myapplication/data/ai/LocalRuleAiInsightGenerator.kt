@@ -7,7 +7,7 @@ import com.example.myapplication.data.FeedItemType
 /**
  * 本地规则降级生成器。
  *
- * 当本地 Qwen 服务没启动、手机无法访问电脑服务、模型超时或输出不合规时，
+ * 当 Qwen API 不可用、网络超时、模型超时或输出不合规时，
  * 使用这套规则保证 App 仍然能展示摘要和标签。
  */
 class LocalRuleAiInsightGenerator : AiInsightGenerator {

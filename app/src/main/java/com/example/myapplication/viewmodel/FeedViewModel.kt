@@ -206,7 +206,7 @@ class FeedViewModel(
             aiInsightJob?.cancel()
         }
         aiInsightJob = viewModelScope.launch {
-            // 本地小模型推理速度有限。串行生成可以避免一次性请求把 Ollama 打满。
+            // 串行生成可以避免一次性请求过多，减少 API 限流和超时风险。
             items.forEach { item ->
                 val insight = feedRepository.generateAiInsight(item)
                 allItems.value = allItems.value.map { current ->
